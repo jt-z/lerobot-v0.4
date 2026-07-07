@@ -11,5 +11,8 @@ else
     echo "未检测到checkpoint，开始新训练"
     accelerate launch --multi_gpu --num_processes=8 $(which lerobot-train) \
         --policy.path=/home/ksa/.cache/modelscope/hub/models/lerobot/smolvla_base \
-        --config_path=/home/ksa/lerobot/self_scripts/train_config_smolvla.json
+        --config_path=/home/ksa/lerobot/self_scripts/train_config_smolvla.json \
+        --policy.push_to_hub=false \
+        --rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.side": "observation.images.camera2"}' \
+        --policy.empty_cameras=1
 fi
