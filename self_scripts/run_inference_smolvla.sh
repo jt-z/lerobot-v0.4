@@ -22,7 +22,7 @@ lerobot-record \
   --dataset.push_to_hub=false \
   --dataset.repo_id=hellozjt/eval_smolvla_so101_put_ball2cup \
   --dataset.single_task="Put ball to the cup" \
-  --dataset.episode_time_s=60 \
+  --dataset.episode_time_s=200 \
   --dataset.num_episodes=5 \
   --dataset.rename_map='{"observation.images.front": "observation.images.camera1", "observation.images.side": "observation.images.camera2"}' \
   --policy.path=$POLICY_PATH \
