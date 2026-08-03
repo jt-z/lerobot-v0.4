@@ -39,7 +39,8 @@ LEFT_HAND_CAMERA="/dev/video0"          # icspring
 LEFT_MAIN_CAMERA="/dev/video2"          # icspring - 主摄像头
 # 右臂摄像头（hand camera）
 RIGHT_HAND_CAMERA="/dev/video4"         # JYU2C-2083
-
+# 前视摄像头（front camera）
+FRONT_CAMERA="/dev/video6"              # front view
 
 # 摄像头分辨率和帧率
 CAMERA_WIDTH=640
@@ -113,7 +114,7 @@ check_cameras() {
 
     local all_cameras_ok=true
 
-    for camera in "$LEFT_HAND_CAMERA" "$LEFT_MAIN_CAMERA" "$RIGHT_HAND_CAMERA"; do
+    for camera in "$LEFT_HAND_CAMERA" "$LEFT_MAIN_CAMERA" "$RIGHT_HAND_CAMERA" "$FRONT_CAMERA"; do
         if [ -e "$camera" ]; then
             print_success "找到摄像头: $camera"
         else
@@ -201,6 +202,7 @@ main() {
     echo "  左臂手部摄像头: $LEFT_HAND_CAMERA"
     echo "  主摄像头（顶部）: $LEFT_MAIN_CAMERA"
     echo "  右臂手部摄像头: $RIGHT_HAND_CAMERA"
+    echo "  前视摄像头: $FRONT_CAMERA"
     echo "  分辨率: ${CAMERA_WIDTH}x${CAMERA_HEIGHT} @ ${CAMERA_FPS}fps"
     echo ""
 
@@ -246,7 +248,8 @@ main() {
         --robot.id="$FOLLOWER_ID" \
         --robot.left_arm_config.cameras="{
             hand: {type: opencv, index_or_path: $LEFT_HAND_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS},
-            top: {type: opencv, index_or_path: $LEFT_MAIN_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS, fourcc: MJPG}
+            top: {type: opencv, index_or_path: $LEFT_MAIN_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS, fourcc: MJPG},
+            front: {type: opencv, index_or_path: $FRONT_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS, fourcc: MJPG}
         }" \
         --robot.right_arm_config.cameras="{
             hand: {type: opencv, index_or_path: $RIGHT_HAND_CAMERA, width: $CAMERA_WIDTH, height: $CAMERA_HEIGHT, fps: $CAMERA_FPS, fourcc: MJPG}
