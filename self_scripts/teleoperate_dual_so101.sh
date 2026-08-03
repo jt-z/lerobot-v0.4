@@ -241,6 +241,7 @@ main() {
 
     # 执行遥操作（带摄像头配置）
     # 注意：右臂摄像头 (JYU2C-2083) 需要明确指定 MJPG 格式
+    # front 摄像头挂载到 left_arm，在观测中会显示为 left_front
     lerobot-teleoperate \
         --robot.type=bi_so_follower \
         --robot.left_arm_config.port="$LEFT_FOLLOWER_PORT" \
