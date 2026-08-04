@@ -71,19 +71,26 @@ ls -la ~/.cache/huggingface/lerobot/calibration/teleoperators/so_leader/
 ```bash
 lerobot-record \
   --robot.type=bi_so_follower \
-  --robot.left_arm_config.port=/dev/ttyUSB0 \
-  --robot.right_arm_config.port=/dev/ttyUSB1 \
-  --robot.id=jt_bimanual_follower \
-  --robot.left_arm_config.cameras='{"wrist": {"type": "opencv", "index_or_path": 0, "width": 640, "height": 480, "fps": 30}}' \
-  --robot.right_arm_config.cameras='{"wrist": {"type": "opencv", "index_or_path": 1, "width": 640, "height": 480, "fps": 30}}' \
+  --robot.left_arm_config.port=/dev/ttyLeftFollower \
+  --robot.right_arm_config.port=/dev/ttyRightFollower \
+  --robot.id=jt_follower_arm \
+  --robot.left_arm_config.cameras='{"hand": {"type": "opencv", "index_or_path": "/dev/video0", "width": 640, "height": 480, "fps": 30}}' \
+  --robot.right_arm_config.cameras='{"hand": {"type": "opencv", "index_or_path": "/dev/video4", "width": 640, "height": 480, "fps": 30, "fourcc": "MJPG"}}' \
+  --robot.left_arm_config.max_relative_target=20.0 \
+  --robot.right_arm_config.max_relative_target=20.0 \
   --teleop.type=bi_so_leader \
-  --teleop.left_arm_config.port=/dev/ttyUSB2 \
-  --teleop.right_arm_config.port=/dev/ttyUSB3 \
-  --teleop.id=jt_bimanual_leader \
+  --teleop.left_arm_config.port=/dev/ttyLeftLeader \
+  --teleop.right_arm_config.port=/dev/ttyRightLeader \
+  --teleop.id=jt_leader_arm \
   --dataset.repo_id=jt-z/bimanual-task-dataset \
   --dataset.num_episodes=50 \
   --dataset.single_task="双臂协同抓取和传递物体" \
   --dataset.fps=30 \
+  --dataset.episode_time_s=30 \
+  --dataset.reset_time_s=20 \
+  --dataset.video=true \
+  --dataset.vcodec=h264 \
+  --dataset.push_to_hub=true \
   --display_data=true
 ```
 
@@ -92,36 +99,50 @@ lerobot-record \
 | 参数 | 说明 | 建议值 |
 |------|------|--------|
 | `--robot.type` | 机器人类型 | `bi_so_follower` |
-| `--robot.left_arm_config.port` | 左臂从动臂串口 | 根据实际情况 |
-| `--robot.right_arm_config.port` | 右臂从动臂串口 | 根据实际情况 |
-| `--robot.id` | 机器人标识符（用于校准） | 你的校准文件名前缀 |
+| `--robot.left_arm_config.port` | 左臂从动臂串口 | `/dev/ttyLeftFollower` 或实际端口 |
+| `--robot.right_arm_config.port` | 右臂从动臂串口 | `/dev/ttyRightFollower` 或实际端口 |
+| `--robot.id` | 机器人标识符（用于校准） | `jt_follower_arm`（你的校准文件名前缀）|
+| `--robot.*_arm_config.max_relative_target` | 最大相对移动量（度） | 20.0（防止抖动）|
 | `--teleop.type` | 遥操作类型 | `bi_so_leader` |
-| `--teleop.left_arm_config.port` | 左臂主动臂串口 | 根据实际情况 |
-| `--teleop.right_arm_config.port` | 右臂主动臂串口 | 根据实际情况 |
+| `--teleop.left_arm_config.port` | 左臂主动臂串口 | `/dev/ttyLeftLeader` 或实际端口 |
+| `--teleop.right_arm_config.port` | 右臂主动臂串口 | `/dev/ttyRightLeader` 或实际端口 |
+| `--teleop.id` | 遥操作标识符（用于校准） | `jt_leader_arm`（你的校准文件名前缀）|
 | `--dataset.repo_id` | 数据集名称（HF Hub） | `你的用户名/数据集名` |
 | `--dataset.num_episodes` | 采集的 episode 数量 | 50-200（看任务复杂度）|
 | `--dataset.single_task` | 任务描述 | 清晰描述任务内容 |
 | `--dataset.fps` | 数据采集频率 | 30 Hz |
+| `--dataset.episode_time_s` | 每个 episode 录制时长 | 30 秒 |
+| `--dataset.reset_time_s` | 重置环境时长 | 20 秒 |
+| `--dataset.video` | 是否保存视频 | `true` |
+| `--dataset.vcodec` | 视频编码格式 | `h264`（推荐）或 `libx264` |
+| `--dataset.push_to_hub` | 是否上传到 HF Hub | `true` |
+| `--resume` | 从中断处继续采集 | `true`（可选）|
 
 ### 2.3 摄像头配置选项
 
 #### 最小配置（每臂一个腕部相机）
 ```bash
---robot.left_arm_config.cameras='{"wrist": {"type": "opencv", "index_or_path": 0, "width": 640, "height": 480, "fps": 30}}' \
---robot.right_arm_config.cameras='{"wrist": {"type": "opencv", "index_or_path": 1, "width": 640, "height": 480, "fps": 30}}'
+--robot.left_arm_config.cameras='{"hand": {"type": "opencv", "index_or_path": "/dev/video0", "width": 640, "height": 480, "fps": 30}}' \
+--robot.right_arm_config.cameras='{"hand": {"type": "opencv", "index_or_path": "/dev/video4", "width": 640, "height": 480, "fps": 30, "fourcc": "MJPG"}}'
 ```
 
-#### 推荐配置（每臂两个相机）
+#### 推荐配置（左臂三相机 + 右臂一相机）
 ```bash
 --robot.left_arm_config.cameras='{
-  "wrist": {"type": "opencv", "index_or_path": 0, "width": 640, "height": 480, "fps": 30},
-  "top": {"type": "opencv", "index_or_path": 2, "width": 640, "height": 480, "fps": 30}
+  hand: {type: opencv, index_or_path: /dev/video0, width: 640, height: 480, fps: 30},
+  top: {type: opencv, index_or_path: /dev/video2, width: 640, height: 480, fps: 30, fourcc: MJPG},
+  front: {type: opencv, index_or_path: /dev/video6, width: 640, height: 480, fps: 30, fourcc: MJPG}
 }' \
 --robot.right_arm_config.cameras='{
-  "wrist": {"type": "opencv", "index_or_path": 1, "width": 640, "height": 480, "fps": 30},
-  "front": {"type": "opencv", "index_or_path": 3, "width": 640, "height": 480, "fps": 30}
+  hand: {type: opencv, index_or_path: /dev/video4, width: 640, height: 480, fps: 30, fourcc: MJPG}
 }'
 ```
+
+**摄像头配置说明**：
+- **相机名称**：使用 `hand`（手部）、`top`（顶部）、`front`（前视）等描述性名称
+- **index_or_path**：可以使用数字索引（0, 1, 2）或设备路径（`/dev/video0`）
+- **fourcc**：视频编码格式，`MJPG` 可以提高某些摄像头的性能和兼容性
+- **分辨率**：640×480 是推荐的平衡配置，可根据需要调整
 
 ### 2.4 采集流程
 
@@ -134,53 +155,212 @@ lerobot-record \
 2. **录制 episode**：
    - 系统提示 "Recording episode X"
    - 使用主动臂（Leader）控制从动臂（Follower）执行任务
-   - 默认录制 60 秒（可通过 `--dataset.episode_time_s` 调整）
+   - 默认录制时长可通过 `--dataset.episode_time_s` 设置（推荐 30 秒）
    - 按快捷键可提前结束或重录
 
 3. **重置环境**：
    - 系统提示 "Reset the environment"
    - 将物体和机械臂恢复到初始状态
+   - 重置时长可通过 `--dataset.reset_time_s` 设置（推荐 20 秒）
    - 准备下一个 episode
 
 4. **完成采集**：
    - 达到设定的 episode 数量后自动停止
-   - 数据保存到本地并上传到 Hugging Face Hub（如果设置了）
+   - 数据保存到本地并上传到 Hugging Face Hub（如果设置了 `--dataset.push_to_hub=true`）
+
+5. **中断恢复**：
+   - 如果采集过程中断，可以添加 `--resume=true` 参数继续
+   - 系统会自动从上次中断的 episode 继续采集
 
 ### 2.5 采集脚本示例
 
-创建一个脚本便于重复使用：
+创建一个脚本便于重复使用（基于实际使用的脚本）：
 
 ```bash
 #!/bin/bash
 # 文件名：collect_bimanual_data.sh
+# 数据采集脚本：双臂协同任务
+#
+# 支持中断继续录制：
+#   如果录制过程中断，可以添加 --resume 参数继续录制
+#   脚本会自动从上次中断的 episode 继续
 
-# 配置变量
-LEFT_FOLLOWER_PORT="/dev/ttyUSB0"
-RIGHT_FOLLOWER_PORT="/dev/ttyUSB1"
-LEFT_LEADER_PORT="/dev/ttyUSB2"
-RIGHT_LEADER_PORT="/dev/ttyUSB3"
+set -e  # 遇到错误立即退出
 
+# ==================== 命令行参数 ====================
+# 检查是否传入 --resume 参数
+RESUME_MODE=false
+if [ "$1" == "--resume" ]; then
+  RESUME_MODE=true
+  echo "🔄 恢复模式：将从上次中断处继续录制"
+fi
+
+echo "=========================================="
+echo "双臂数据采集 - 协同抓取任务"
+echo "=========================================="
+echo ""
+
+# ==================== 硬件配置 ====================
+LEFT_FOLLOWER_PORT="/dev/ttyLeftFollower"
+RIGHT_FOLLOWER_PORT="/dev/ttyRightFollower"
+LEFT_LEADER_PORT="/dev/ttyLeftLeader"
+RIGHT_LEADER_PORT="/dev/ttyRightLeader"
+
+# ==================== 摄像头配置 ====================
+# 左臂：3个摄像头（手部、顶部、前视）
+LEFT_CAMERAS='{
+  hand: {type: opencv, index_or_path: /dev/video0, width: 640, height: 480, fps: 30},
+  top: {type: opencv, index_or_path: /dev/video2, width: 640, height: 480, fps: 30, fourcc: MJPG},
+  front: {type: opencv, index_or_path: /dev/video6, width: 640, height: 480, fps: 30, fourcc: MJPG}
+}'
+
+# 右臂：1个摄像头（手部）
+RIGHT_CAMERAS='{
+  hand: {type: opencv, index_or_path: /dev/video4, width: 640, height: 480, fps: 30, fourcc: MJPG}
+}'
+
+# ==================== 数据集配置 ====================
 DATASET_NAME="jt-z/bimanual-pick-and-place"
 TASK_DESCRIPTION="双臂协同抓取物体并放置到目标位置"
 NUM_EPISODES=100
+EPISODE_TIME=30  # 每个 episode 录制时长（秒）
+RESET_TIME=20    # 重置环境时长（秒）
+FPS=30
 
-lerobot-record \
+# ==================== 采集前检查 ====================
+echo "1. 检查硬件连接..."
+
+# 检查串口
+for port in $LEFT_FOLLOWER_PORT $RIGHT_FOLLOWER_PORT $LEFT_LEADER_PORT $RIGHT_LEADER_PORT; do
+  if [ ! -e "$port" ]; then
+    echo "❌ 错误：串口不存在 $port"
+    echo "请检查硬件连接和串口映射"
+    exit 1
+  else
+    echo "✅ $port 已连接"
+  fi
+done
+
+# 检查摄像头
+echo ""
+echo "2. 检查摄像头..."
+for video in /dev/video0 /dev/video2 /dev/video4 /dev/video6; do
+  if [ ! -e "$video" ]; then
+    echo "❌ 警告：摄像头不存在 $video"
+  else
+    echo "✅ $video 已连接"
+  fi
+done
+
+# 检查校准文件
+echo ""
+echo "3. 检查校准文件..."
+CALIB_FOLLOWER_DIR="$HOME/.cache/huggingface/lerobot/calibration/robots/so_follower"
+CALIB_LEADER_DIR="$HOME/.cache/huggingface/lerobot/calibration/teleoperators/so_leader"
+
+if [ -d "$CALIB_FOLLOWER_DIR" ] && [ -d "$CALIB_LEADER_DIR" ]; then
+  echo "✅ 校准文件目录存在"
+  echo "   Follower: $(ls $CALIB_FOLLOWER_DIR | grep jt_follower_arm | wc -l) 个文件"
+  echo "   Leader: $(ls $CALIB_LEADER_DIR | grep jt_leader_arm | wc -l) 个文件"
+else
+  echo "⚠️  校准文件目录不完整，首次运行时会提示校准"
+fi
+
+# ==================== 采集参数总览 ====================
+echo ""
+echo "=========================================="
+echo "采集参数总览"
+echo "=========================================="
+echo "数据集名称：$DATASET_NAME"
+echo "任务描述：$TASK_DESCRIPTION"
+echo "Episode 数量：$NUM_EPISODES"
+echo "每 Episode 时长：${EPISODE_TIME}秒"
+echo "重置时长：${RESET_TIME}秒"
+echo "采集频率：${FPS} Hz"
+echo "预计总时长：约 $((($EPISODE_TIME + $RESET_TIME) * $NUM_EPISODES / 60)) 分钟"
+echo "=========================================="
+echo ""
+
+# 确认开始
+read -p "按 ENTER 开始数据采集，按 Ctrl+C 取消..." dummy
+
+# ==================== 开始采集 ====================
+echo ""
+echo "🚀 开始数据采集..."
+echo ""
+
+# 构建命令
+RECORD_CMD="lerobot-record \
   --robot.type=bi_so_follower \
   --robot.left_arm_config.port=$LEFT_FOLLOWER_PORT \
   --robot.right_arm_config.port=$RIGHT_FOLLOWER_PORT \
-  --robot.id=jt_bimanual_follower \
-  --robot.left_arm_config.cameras='{"wrist": {"type": "opencv", "index_or_path": 0, "width": 640, "height": 480, "fps": 30}}' \
-  --robot.right_arm_config.cameras='{"wrist": {"type": "opencv", "index_or_path": 1, "width": 640, "height": 480, "fps": 30}}' \
+  --robot.id=jt_follower_arm \
+  --robot.left_arm_config.cameras=\"$LEFT_CAMERAS\" \
+  --robot.right_arm_config.cameras=\"$RIGHT_CAMERAS\" \
+  --robot.left_arm_config.max_relative_target=20.0 \
+  --robot.right_arm_config.max_relative_target=20.0 \
   --teleop.type=bi_so_leader \
   --teleop.left_arm_config.port=$LEFT_LEADER_PORT \
   --teleop.right_arm_config.port=$RIGHT_LEADER_PORT \
-  --teleop.id=jt_bimanual_leader \
+  --teleop.id=jt_leader_arm \
   --dataset.repo_id=$DATASET_NAME \
   --dataset.num_episodes=$NUM_EPISODES \
-  --dataset.single_task="$TASK_DESCRIPTION" \
-  --dataset.fps=30 \
-  --display_data=true
+  --dataset.single_task=\"$TASK_DESCRIPTION\" \
+  --dataset.fps=$FPS \
+  --dataset.episode_time_s=$EPISODE_TIME \
+  --dataset.reset_time_s=$RESET_TIME \
+  --dataset.video=true \
+  --dataset.vcodec=h264 \
+  --dataset.push_to_hub=true \
+  --display_data=true"
+
+# 如果是恢复模式，添加 --resume 参数
+if [ "$RESUME_MODE" = true ]; then
+  RECORD_CMD="$RECORD_CMD --resume=true"
+fi
+
+# 执行命令
+eval $RECORD_CMD
+
+# ==================== 采集完成 ====================
+echo ""
+echo "=========================================="
+echo "✅ 数据采集完成！"
+echo "=========================================="
+echo "数据集名称：$DATASET_NAME"
+echo "Episode 数量：$NUM_EPISODES"
+echo "Hugging Face Hub 链接："
+echo "  https://huggingface.co/datasets/$DATASET_NAME"
+echo ""
+echo "💡 提示："
+echo "  如果录制过程中断，可以使用以下命令继续："
+echo "  ./collect_bimanual_data.sh --resume"
+echo ""
+echo "下一步："
+echo "  1. 访问上述链接查看数据集"
+echo "  2. 检查数据质量"
+echo "  3. 开始训练 ACT 模型"
+echo "=========================================="
 ```
+
+**使用方法**：
+
+```bash
+# 首次采集
+chmod +x collect_bimanual_data.sh
+./collect_bimanual_data.sh
+
+# 如果中断后继续采集
+./collect_bimanual_data.sh --resume
+```
+
+**脚本特点**：
+- ✅ 自动检查硬件连接（串口、摄像头、校准文件）
+- ✅ 支持中断恢复（`--resume` 参数）
+- ✅ 清晰的采集参数总览和预估时长
+- ✅ 完整的错误检查和友好提示
+- ✅ 多摄像头配置支持
+- ✅ 自动上传到 Hugging Face Hub
 
 ---
 
