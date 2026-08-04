@@ -42,7 +42,7 @@ RIGHT_CAMERAS='{
 }'
 
 # ==================== 数据集配置 ====================
-DATASET_NAME="jt-z/cap_pen_and_put_into_holder"
+DATASET_NAME="hellozjt/cap_pen_and_put_into_holder"
 TASK_DESCRIPTION="Put the cap back on the pen on the table and place it in the pen holder"
 NUM_EPISODES=40
 EPISODE_TIME=30  # 每个 episode 录制时长（秒）
@@ -119,8 +119,8 @@ RECORD_CMD="lerobot-record \
   --robot.id=jt_follower_arm \
   --robot.left_arm_config.cameras=\"$LEFT_CAMERAS\" \
   --robot.right_arm_config.cameras=\"$RIGHT_CAMERAS\" \
-  --robot.left_arm_config.max_relative_target=1.0 \
-  --robot.right_arm_config.max_relative_target=1.0 \
+  --robot.left_arm_config.max_relative_target=20.0 \
+  --robot.right_arm_config.max_relative_target=20.0 \
   --teleop.type=bi_so_leader \
   --teleop.left_arm_config.port=$LEFT_LEADER_PORT \
   --teleop.right_arm_config.port=$RIGHT_LEADER_PORT \
