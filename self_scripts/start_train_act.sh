@@ -9,5 +9,5 @@ if [ -f "$CHECKPOINT_CONFIG" ]; then
     accelerate launch --multi_gpu --num_processes=8 $(which lerobot-train) --config_path="$CHECKPOINT_CONFIG" --resume=true
 else
     echo "未检测到checkpoint，开始新训练"
-    accelerate launch --multi_gpu --num_processes=8 $(which lerobot-train) --config_path=train_config.json
+    accelerate launch --multi_gpu --num_processes=8 $(which lerobot-train) --config_path=train_config_act.json
 fi
