@@ -3,6 +3,7 @@
 cd /home/ksa/lerobot/self_scripts/
 
 CHECKPOINT_CONFIG="output_lerobot_train/smolvla_put_ball2cup/checkpoints/last/pretrained_model/train_config.json"
+export HF_ENDPOINT=https://hf-mirror.com
 
 if [ -f "$CHECKPOINT_CONFIG" ]; then
     echo "检测到checkpoint，将从上次训练继续"
