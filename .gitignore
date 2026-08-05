@@ -30,6 +30,8 @@ Pipfile.lock
 
 self_scripts/output_lerobot_train
 
+self_scripts/tool_scripts/camera_test_images
+
 ### Build & Distribution ###
 build/
 dist/
