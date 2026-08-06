@@ -45,7 +45,7 @@ RIGHT_CAMERAS='{
 DATASET_NAME="hellozjt/cap_pen_and_put_into_holder"
 TASK_DESCRIPTION="Put the cap back on the pen on the table and place it in the pen holder"
 NUM_EPISODES=40
-EPISODE_TIME=50  # 每个 episode 录制时长（秒）- 50秒 × 20fps = 1000帧
+EPISODE_TIME=45  # 每个 episode 录制时长（秒）- 75秒 × 20fps = 1500帧
 RESET_TIME=20    # 重置环境时长（秒）
 FPS=20
 
@@ -141,10 +141,8 @@ RECORD_CMD="lerobot-record \
   --dataset.reset_time_s=$RESET_TIME \
   --dataset.video=true \
   --dataset.vcodec=h264 \
-  --dataset.num_image_writer_processes=0 \
-  --dataset.num_image_writer_threads_per_camera=8 \
   --dataset.push_to_hub=true \
-  --display_data=false \
+  --display_data=true \
   --display_compressed_images=false"
 
 # 如果是恢复模式，添加 --resume 参数
