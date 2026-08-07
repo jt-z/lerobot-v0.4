@@ -1,7 +1,7 @@
 {
   "dataset": {
-    "repo_id": "hellozjt/demo_data_dual_video",
-    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/demo_data_dual_video",
+    "repo_id": "hellozjt/cap_pen_and_put_into_holder",
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/cap_pen_and_put_into_holder",
     "revision": "main",
     "streaming": false
   },
@@ -17,7 +17,7 @@
   "optimizer": {
     "grad_clip_norm": 5.0
   },
-  "output_dir": "output_lerobot_train/demo_data_dual_stable",
+  "output_dir": "output_lerobot_train/cap_pen_and_put_into_holder",
   "job_name": "training_job",
   "steps": 37500,
   "batch_size": 16,

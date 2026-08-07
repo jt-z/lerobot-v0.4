@@ -5,9 +5,16 @@
 #   ./train.sh configs/stable.json --gpus 4           # 4 GPU
 #   ./train.sh configs/stable.json --gpus 1 --gpu 7   # 单GPU（GPU 7）
 #   ./train.sh configs/stable.json --resume           # 从checkpoint恢复
+#    ./train.sh  /home/ksa/lerobot/self_scripts/stage3_train/configs/stable.json
 
 set -e
-cd /home/ksa/lerobot/self_scripts/
+
+# 激活 conda 环境
+if [ -z "$CONDA_DEFAULT_ENV" ] || [ "$CONDA_DEFAULT_ENV" != "lerobot" ]; then
+    echo "激活 lerobot conda 环境..."
+    eval "$(conda shell.bash hook)"
+    conda activate lerobot
+fi
 
 # 默认参数
 CONFIG_FILE=""
@@ -75,14 +82,19 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# 检查配置文件
+# 检查配置文件（支持相对路径和绝对路径）
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "❌ 配置文件不存在: $CONFIG_FILE"
     echo ""
     echo "可用配置:"
-    ls -1 configs/*.json 2>/dev/null | sed 's/^/  /'
+    if [ -d "configs" ]; then
+        ls -1 configs/*.json 2>/dev/null | sed 's/^/  /'
+    fi
     exit 1
 fi
+
+# 转换为绝对路径
+CONFIG_FILE=$(realpath "$CONFIG_FILE")
 
 # 启用调试模式
 if [ "$DEBUG" = true ]; then
