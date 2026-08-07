@@ -1,0 +1,17 @@
+#!/bin/bash
+# 启动训练（支持从checkpoint继续训练）
+cd /home/ksa/lerobot/self_scripts/
+
+# CHECKPOINT_CONFIG="output_lerobot_train/put_ball2cup/checkpoints/last/pretrained_model/train_config.json"
+# CHECKPOINT_CONFIG="output_lerobot_train/demo_data_dual/checkpoints/last/pretrained_model/train_config.json"
+CHECKPOINT_CONFIG="output_lerobot_train/cap_pen_and_put_into_holder/checkpoints/last/pretrained_model/train_config.json"
+
+
+if [ -f "$CHECKPOINT_CONFIG" ]; then
+    echo "检测到checkpoint，将从上次训练继续（step=2000）"
+    accelerate launch --multi_gpu --num_processes=8 $(which lerobot-train) --config_path="$CHECKPOINT_CONFIG" --resume=true
+else
+    echo "未检测到checkpoint，开始新训练"
+    # accelerate launch --multi_gpu --num_processes=8 $(which lerobot-train) --config_path=train_config_act.json
+    CUDA_VISIBLE_DEVICES=7 accelerate launch  --num_processes=1 $(which lerobot-train) --config_path=train_config_act.json
+fi

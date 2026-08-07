@@ -1,7 +1,7 @@
 {
   "dataset": {
-    "repo_id": "hellozjt/lerobot_so101_put_ball2cup",
-    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/lerobot_so101_put_ball2cup",
+    "repo_id": "hellozjt/cap_pen_and_put_into_holder", 
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/cap_pen_and_put_into_holder",
     "revision": "main",
     "streaming": false
   },
@@ -11,9 +11,9 @@
     "push_to_hub": false,
     "optimizer_lr": 8e-5
   },
-  "output_dir": "output_lerobot_train/put_ball2cup",
+  "output_dir": "output_lerobot_train/cap_pen_and_put_into_holder",
   "job_name": "put_job",
   "steps": 37500,
-  "batch_size": 32,
+  "batch_size": 8,
   "save_freq": 2000
 }
