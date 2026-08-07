@@ -31,23 +31,23 @@ RIGHT_LEADER_PORT="/dev/ttyRightLeader"
 # ==================== 摄像头配置 ====================
 # 左臂：3个摄像头（手部、顶部、前视）
 LEFT_CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/video0, width: 640, height: 480, fps: 30},
+  hand: {type: opencv, index_or_path: /dev/video0, width: 640, height: 480, fps: 30, fourcc: MJPG},
   top: {type: opencv, index_or_path: /dev/video2, width: 640, height: 480, fps: 30, fourcc: MJPG},
   front: {type: opencv, index_or_path: /dev/video6, width: 640, height: 480, fps: 30, fourcc: MJPG}
 }'
 
 # 右臂：1个摄像头（手部）
 RIGHT_CAMERAS='{
-  hand: {type: opencv, index_or_path: /dev/video4, width: 640, height: 480, fps: 30, fourcc: MJPG}
+  hand: {type: opencv, index_or_path: /dev/video4, width: 640, height: 480, fps: 20, fourcc: MJPG}
 }'
 
 # ==================== 数据集配置 ====================
 DATASET_NAME="hellozjt/cap_pen_and_put_into_holder"
 TASK_DESCRIPTION="Put the cap back on the pen on the table and place it in the pen holder"
 NUM_EPISODES=40
-EPISODE_TIME=30  # 每个 episode 录制时长（秒）
+EPISODE_TIME=45  # 每个 episode 录制时长（秒）- 75秒 × 20fps = 1500帧
 RESET_TIME=20    # 重置环境时长（秒）
-FPS=30
+FPS=20
 
 # ==================== 采集前检查 ====================
 echo "1. 检查硬件连接..."
@@ -111,6 +111,14 @@ echo ""
 echo "🚀 开始数据采集..."
 echo ""
 
+# 设置 Rerun 缓冲区大小（解决 gRPC transport error）
+# 默认 8KB 太小，4 路摄像头每帧约 3.7MB，增大到 10MB
+export RERUN_FLUSH_NUM_BYTES=10000000
+
+# 设置 Rerun 内存限制为 30%（解决 1000 帧限制问题）
+# 默认 10% 在约 1000 帧时触达限制，导致录制提前终止
+export LEROBOT_RERUN_MEMORY_LIMIT="30%"
+
 # 构建命令
 RECORD_CMD="lerobot-record \
   --robot.type=bi_so_follower \
@@ -134,7 +142,8 @@ RECORD_CMD="lerobot-record \
   --dataset.video=true \
   --dataset.vcodec=h264 \
   --dataset.push_to_hub=true \
-  --display_data=true"
+  --display_data=true \
+  --display_compressed_images=false"
 
 # 如果是恢复模式，添加 --resume 参数
 if [ "$RESUME_MODE" = true ]; then
