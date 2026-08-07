@@ -1,0 +1,20 @@
+{
+  "dataset": {
+    "repo_id": "hellozjt/demo_data_dual",
+    //
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/demo_data_dual",
+    "revision": "main",
+    "streaming": false
+  },
+  "policy": {
+    "type": "act",
+    "device": "cuda",
+    "push_to_hub": false,
+    "optimizer_lr": 8e-5
+  },
+  "output_dir": "output_lerobot_train/demo_data_dual",
+  "job_name": "put_job",
+  "steps": 37500,
+  "batch_size": 32,
+  "save_freq": 2000
+}

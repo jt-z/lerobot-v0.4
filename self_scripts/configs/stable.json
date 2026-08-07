@@ -1,0 +1,25 @@
+{
+  "dataset": {
+    "repo_id": "hellozjt/demo_data_dual_video",
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/demo_data_dual_video",
+    "revision": "main",
+    "streaming": false
+  },
+  "policy": {
+    "type": "act",
+    "device": "cuda",
+    "push_to_hub": false,
+    "optimizer_lr": 5e-5,
+    "use_vae": true,
+    "kl_weight": 1.0,
+    "n_vae_encoder_layers": 2
+  },
+  "optimizer": {
+    "grad_clip_norm": 5.0
+  },
+  "output_dir": "output_lerobot_train/demo_data_dual_stable",
+  "job_name": "training_job",
+  "steps": 37500,
+  "batch_size": 16,
+  "save_freq": 2000
+}
