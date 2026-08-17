@@ -6,20 +6,18 @@
     "streaming": false
   },
   "policy": {
-    "type": "act",
+    "type": "smolvla",
     "device": "cuda",
     "push_to_hub": false,
-    "optimizer_lr": 5e-5,
-    "use_vae": true,
-    "kl_weight": 1.0,
-    "n_vae_encoder_layers": 2
+    "optimizer_lr": 5e-5
   },
   "optimizer": {
     "grad_clip_norm": 5.0
   },
-  "output_dir": "output_lerobot_train/cap_pen_and_put_into_holder",
+  "output_dir": "output_lerobot_train/smolvla_cap_pen_and_put_into_holder",
   "job_name": "training_job",
-  "steps": 37500,
-  "batch_size": 16,
-  "save_freq": 2000
+  "steps": 200000,
+  "batch_size": 8,
+  "save_freq": 200000,
+  "checkpoint_path": "output_lerobot_train/smolvla_cap_pen_and_put_into_holder/checkpoints/028000"
 }
