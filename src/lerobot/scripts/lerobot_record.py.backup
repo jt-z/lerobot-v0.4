@@ -318,7 +318,6 @@ def record_loop(
         postprocessor.reset()
 
     timestamp = 0
-    frame_counter = 0  # DEBUG
     start_episode_t = time.perf_counter()
     while timestamp < control_time_s:
         start_loop_t = time.perf_counter()
@@ -329,7 +328,6 @@ def record_loop(
 
         # Get robot observation
         obs = robot.get_observation()
-        t1 = time.perf_counter()  # DEBUG
 
         # Applies a pipeline to the raw robot observation, default is IdentityProcessor
         obs_processed = robot_observation_processor(obs)
@@ -351,11 +349,9 @@ def record_loop(
             )
 
             act_processed_policy: RobotAction = make_robot_action(action_values, dataset.features)
-            t2 = time.perf_counter()  # DEBUG
 
         elif policy is None and isinstance(teleop, Teleoperator):
             act = teleop.get_action()
-            t2 = time.perf_counter()  # DEBUG
 
             # Applies a pipeline to the raw teleop action, default is IdentityProcessor
             act_processed_teleop = teleop_action_processor((act, obs))
@@ -388,17 +384,12 @@ def record_loop(
         # so action actually sent is saved in the dataset. action = postprocessor.process(action)
         # TODO(steven, pepijn, adil): we should use a pipeline step to clip the action, so the sent action is the action that we input to the robot.
         _sent_action = robot.send_action(robot_action_to_send)
-        t3 = time.perf_counter()  # DEBUG
 
         # Write to dataset
         if dataset is not None:
             action_frame = build_dataset_frame(dataset.features, action_values, prefix=ACTION)
             frame = {**observation_frame, **action_frame, "task": single_task}
             dataset.add_frame(frame)
-            t4 = time.perf_counter()  # DEBUG
-            frame_counter += 1  # DEBUG
-            if frame_counter % 100 == 0 or frame_counter in [999, 1000, 1001]:  # DEBUG
-                logging.info(f"DEBUG: Frame {frame_counter}, timestamp={timestamp:.2f}s")  # DEBUG
 
         if display_data:
             log_rerun_data(
@@ -406,13 +397,9 @@ def record_loop(
             )
 
         dt_s = time.perf_counter() - start_loop_t
-        if frame_counter == 100:  # DEBUG
-            logging.info(f"PERF: get_obs={(t1-start_loop_t)*1000:.1f}ms, get_act={(t2-t1)*1000:.1f}ms, send_act={(t3-t2)*1000:.1f}ms, add_frame={(t4-t3)*1000:.1f}ms, total={dt_s*1000:.1f}ms, sleep={(max(1/fps-dt_s,0))*1000:.1f}ms")  # DEBUG
         precise_sleep(max(1 / fps - dt_s, 0.0))
 
         timestamp = time.perf_counter() - start_episode_t
-        if frame_counter >= 990 and frame_counter <= 1010:  # DEBUG
-            logging.info(f"DEBUG LOOP: After frame {frame_counter}, timestamp={timestamp:.4f}, will_continue={timestamp < control_time_s}")  # DEBUG
 
 
 @parser.wrap()
