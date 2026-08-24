@@ -35,8 +35,8 @@ RIGHT_CAMERAS='{
 # MODEL_PATH="/home/jt/dev/lerobot/output_lerobot_train/two_hand/checkpoints_037500/pretrained_model"
 # MODEL_PATH="/home/jt/dev/lerobot/output_lerobot_train/two_hand/checkpoints_200000/pretrained_model"
 
-# smolvla :
-MODEL_PATH="/home/jt/dev/lerobot/output_lerobot_train/two_hand/smolvla/300k_checkpoint_pretrained_model"
+# smolvla 114k :
+MODEL_PATH="/home/ksa/lerobot/self_scripts/output_lerobot_train/task2_make_coffee/smolvla_cap_pen_and_put_into_holder/checkpoints/114000/pretrained_model"
 
 
 # ==================== 数据集配置 ====================
