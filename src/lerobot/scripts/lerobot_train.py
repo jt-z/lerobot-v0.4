@@ -22,8 +22,10 @@ from typing import Any
 
 import torch
 from accelerate import Accelerator
+from peft import PeftModel
 from termcolor import colored
 from torch.optim import Optimizer
+from tqdm import tqdm
 
 from lerobot.configs import parser
 from lerobot.configs.train import TrainPipelineConfig
@@ -237,7 +239,7 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
         rename_map=cfg.rename_map,
     )
 
-    if cfg.peft is not None:
+    if cfg.peft is not None and not isinstance(policy, PeftModel):
         logging.info("Using PEFT! Wrapping model.")
         # Convert CLI peft config to dict for overrides
         peft_cli_overrides = dataclasses.asdict(cfg.peft)
@@ -386,6 +388,7 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
         dataset.num_episodes,
         train_metrics,
         initial_step=step,
+        total_steps=cfg.steps,
         accelerator=accelerator,
     )
 
@@ -393,6 +396,14 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
         logging.info(
             f"Start offline training on a fixed dataset, with effective batch size: {effective_batch_size}"
         )
+
+    pbar = tqdm(
+        total=cfg.steps,
+        initial=step,
+        desc="Training",
+        disable=not is_main_process,
+        dynamic_ncols=True,
+    )
 
     for _ in range(step, cfg.steps):
         start_time = time.perf_counter()
@@ -415,6 +426,16 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
         # increment `step` here.
         step += 1
         train_tracker.step()
+
+        # Update the live progress bar with recent loss/lr and ETA
+        pbar.set_postfix(
+            {
+                "loss": f"{train_tracker.loss.avg:.3f}",
+                "lr": f"{train_tracker.lr.avg:.2e}",
+            }
+        )
+        pbar.update(1)
+
         is_log_step = cfg.log_freq > 0 and step % cfg.log_freq == 0 and is_main_process
         is_saving_step = step % cfg.save_freq == 0 or step == cfg.steps
         is_eval_step = cfg.eval_freq > 0 and step % cfg.eval_freq == 0
@@ -506,6 +527,8 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
                     wandb_logger.log_video(eval_info["overall"]["video_paths"][0], step, mode="eval")
 
             accelerator.wait_for_everyone()
+
+    pbar.close()
 
     if eval_env:
         close_envs(eval_env)

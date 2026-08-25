@@ -19,6 +19,21 @@ from typing import Any
 from lerobot.utils.utils import format_big_number
 
 
+def format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a human readable string, e.g. '1d 2h 3m 4s'."""
+    seconds = max(0, int(seconds))
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if days:
+        return f"{days}d{hours}h{minutes}m"
+    if hours:
+        return f"{hours}h{minutes}m"
+    if minutes:
+        return f"{minutes}m{seconds}s"
+    return f"{seconds}s"
+
+
 class AverageMeter:
     """
     Computes and stores the average and current value
@@ -80,6 +95,7 @@ class MetricsTracker:
         "_batch_size",
         "_num_frames",
         "_avg_samples_per_ep",
+        "_total_steps",
         "metrics",
         "steps",
         "samples",
@@ -95,12 +111,14 @@ class MetricsTracker:
         num_episodes: int,
         metrics: dict[str, AverageMeter],
         initial_step: int = 0,
+        total_steps: int | None = None,
         accelerator: Callable | None = None,
     ):
         self.__dict__.update(dict.fromkeys(self.__keys__))
         self._batch_size = batch_size
         self._num_frames = num_frames
         self._avg_samples_per_ep = num_frames / num_episodes
+        self._total_steps = total_steps
         self.metrics = metrics
 
         self.steps = initial_step
@@ -147,6 +165,12 @@ class MetricsTracker:
             f"epch:{self.epochs:.2f}",
             *[str(m) for m in self.metrics.values()],
         ]
+        if self._total_steps:
+            display_list.append(f"pct:{self.steps / self._total_steps * 100:.2f}%")
+            update_s = self.metrics.get("update_s")
+            if update_s is not None and update_s.avg > 0:
+                eta_seconds = update_s.avg * (self._total_steps - self.steps)
+                display_list.append(f"eta:{format_duration(eta_seconds)}")
         return " ".join(display_list)
 
     def to_dict(self, use_avg: bool = True) -> dict[str, int | float]:
