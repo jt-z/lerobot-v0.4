@@ -511,7 +511,11 @@ def make_policy(
             )
 
         policy = policy_cls.from_pretrained(**kwargs)
-        policy = PeftModel.from_pretrained(policy, peft_pretrained_path, config=peft_config)
+        # peft>=0.20 defaults is_trainable=False, so LoRA params stay non-trainable and training
+        # would crash on backward ("element 0 of tensors does not require grad").
+        policy = PeftModel.from_pretrained(
+            policy, peft_pretrained_path, config=peft_config, is_trainable=True
+        )
 
     else:
         # Make a fresh policy.
