@@ -28,8 +28,9 @@ poetry.lock
 uv.lock
 Pipfile.lock
 
+### Output Files ###
+output_lerobot_train
 self_scripts/output_lerobot_train
-
 self_scripts/tool_scripts/camera_test_images
 
 ### Build & Distribution ###
@@ -68,7 +69,6 @@ __pycache__/
 .pyre/
 .pytype/
 cython_debug/
-output_lerobot_train
 ### Testing & Coverage ###
 htmlcov/
 .tox/
