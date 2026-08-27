@@ -13,7 +13,7 @@ fi
 # 使用HF国内镜像，避免 huggingface.co 网络不可达
 export HF_ENDPOINT=https://hf-mirror.com
 
-OUTPUT_DIR="output_lerobot_train/smolvla_coffee_cup_button_20260826_232220"
+OUTPUT_DIR="output_lerobot_train/task2_make_coffee_new_dataset/smolvla_coffee_cup_button_20260826_232220"
 CHECKPOINT_CONFIG="$OUTPUT_DIR/checkpoints/last/pretrained_model/train_config.json"
 LOG_FILE="$OUTPUT_DIR/logs/train_smolvla.log"
 
