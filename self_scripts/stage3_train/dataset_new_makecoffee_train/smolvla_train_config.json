@@ -1,0 +1,19 @@
+{
+  "dataset": {
+    "repo_id": "hellozjt/coffee_cup_button_20260826_232220",
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/coffee_cup_button_20260826_232220",
+    "revision": "main",
+    "streaming": false
+  },
+  "policy": {
+    "type": "smolvla",
+    "device": "cuda",
+    "push_to_hub": false,
+    "optimizer_lr": 5e-5
+  },
+  "output_dir": "output_lerobot_train/smolvla_coffee_cup_button_20260826_232220",
+  "job_name": "smolvla_make_coffee_cup_button_job",
+  "steps": 37500,
+  "batch_size": 8,
+  "save_freq": 2000
+}
