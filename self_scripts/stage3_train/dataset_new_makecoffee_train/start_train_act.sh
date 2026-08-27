@@ -24,5 +24,5 @@ if [ -f "$CHECKPOINT_CONFIG" ]; then
 else
     echo "未检测到checkpoint，开始新训练"
     # accelerate launch --multi_gpu --num_processes=8 $(which lerobot-train) --config_path=train_config_act.json
-    CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch  --num_processes=8 $(which lerobot-train) --config_path=stage3_train/configs/act_train_config.json
+    CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch  --num_processes=8 $(which lerobot-train) --config_path=stage3_train/dataset_new_makecoffee_train/act_train_config.json
 fi
