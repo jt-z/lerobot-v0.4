@@ -1,7 +1,7 @@
 {
   "dataset": {
-    "repo_id": "hellozjt/coffee_cup_button_20260826_232220_clean", 
-    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/coffee_cup_button_20260826_232220_clean",
+    "repo_id": "hellozjt/b601_so101_20260902_165927", 
+    "root": "/home/ksa/.cache/huggingface/lerobot/hellozjt/b601_so101_20260902_165927",
     "revision": "main",
     "streaming": false
   },
@@ -11,7 +11,7 @@
     "push_to_hub": false,
     "optimizer_lr": 8e-5
   },
-  "output_dir": "output_lerobot_train/cap_pen_and_put_coffee_cup_button_20260826_232220_clean_act",
+  "output_dir": "output_lerobot_train/b601_so101_20260902_165927_act",
   "job_name": "make_coffee_cup_button_job",
   "steps": 50000,
   "eval_freq": 0,
