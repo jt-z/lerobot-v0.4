@@ -11,6 +11,9 @@
 >
 > 💡 **要跑多个实验（超参扫描、多任务）时**：别用 8 卡 DDP，**拆成独立任务并发**
 > （`bench/run_split.sh 1 600`）实测能多拿 **+46.5%** 吞吐，零代码改动。详见该文档 §8.4。
+>
+> 📄 **ACT 参数构成分析** → [`model_param_analysis.md`](model_param_analysis.md)
+> （78.4% 从零训 / 21.6% ImageNet 预训练、FrozenBatchNorm2d、VAE encoder 推理不执行）
 
 ## 数据集 `/data/share/b601_20260910_164106`
 
