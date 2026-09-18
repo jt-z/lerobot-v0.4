@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from lerobot.configs.policies import PreTrainedConfig
 from lerobot.configs.types import NormalizationMode
 from lerobot.optim.optimizers import AdamWConfig
+from lerobot.optim.schedulers import LRSchedulerConfig
 
 
 @PreTrainedConfig.register_subclass("act")
@@ -128,6 +129,15 @@ class ACTConfig(PreTrainedConfig):
     optimizer_weight_decay: float = 1e-4
     optimizer_lr_backbone: float = 1e-5
 
+    # Local extension (not in upstream). Upstream ACT's `get_scheduler_preset()` always returns
+    # None, i.e. ACT trains at a constant lr with no schedule. The only upstream way to get a
+    # custom scheduler is `use_policy_training_preset=False`, but that path goes through
+    # `policy.parameters()` and collapses the backbone param group, silently raising the
+    # ResNet18 lr from `optimizer_lr_backbone` to `optimizer_lr`. Returning the scheduler here
+    # keeps `get_optim_params()` (backbone keeps its own lr) while adding the schedule.
+    # Default None = exact upstream behavior, so other ACT runs are unaffected.
+    lr_scheduler: LRSchedulerConfig | None = None
+
     def __post_init__(self):
         super().__post_init__()
 
@@ -157,8 +167,8 @@ class ACTConfig(PreTrainedConfig):
             weight_decay=self.optimizer_weight_decay,
         )
 
-    def get_scheduler_preset(self) -> None:
-        return None
+    def get_scheduler_preset(self) -> LRSchedulerConfig | None:
+        return self.lr_scheduler
 
     def validate_features(self) -> None:
         if not self.image_features and not self.env_state_feature:
