@@ -1,30 +1,30 @@
-# 单臂 b601_rs — make coffee ACT 训练
+# 单臂 b601\_rs — make coffee ACT 训练
 
 训练**单臂** `seeed_b601_rs_follower` 的 ACT 模型。
 
 ⚠️ 与隔壁 `dataset_new_makecoffee_train/`（**双臂** `bi_b601_so101_follower`）是两套
 独立训练，本体不同、checkpoint 不通用，见下表。
 
-> 📄 **多卡扩展性与卡间通信分析** → [`multigpu_scaling_analysis.md`](multigpu_scaling_analysis.md)
+> 📄 **多卡扩展性与卡间通信分析** → [`bench/multigpu_scaling_analysis.md`](bench/multigpu_scaling_analysis.md)
 > （**实测 8 卡只有 5.31× / 效率 66.4%**，根因是 PCIe P2P 不可用 → NCCL 走主机内存 →
 > 带宽仅 3 GB/s。含 scaling / batch / allreduce / **组拆分** 四组 benchmark）
 >
 > 💡 **要跑多个实验（超参扫描、多任务）时**：别用 8 卡 DDP，**拆成独立任务并发**
 > （`bench/run_split.sh 1 600`）实测能多拿 **+46.5%** 吞吐，零代码改动。详见该文档 §8.4。
 >
-> 📄 **ACT 参数构成分析** → [`model_param_analysis.md`](model_param_analysis.md)
+> 📄 **ACT 参数构成分析** → [`bench/model_param_analysis.md`](bench/model_param_analysis.md)
 > （78.4% 从零训 / 21.6% ImageNet 预训练、FrozenBatchNorm2d、VAE encoder 推理不执行）
 
 ## 数据集 `/data/share/b601_20260910_164106`
 
-| | 本目录（单臂） | `dataset_new_makecoffee_train/`（双臂） |
-|---|---|---|
-| robot_type | `seeed_b601_rs_follower` | `bi_b601_so101_follower` |
-| action / state | **7** 维 | **13** 维 |
-| 相机 | 3 路：hand / front / top | 4 路：left_hand / left_top / left_front / right_hand |
-| episodes | **223** | 101 |
-| frames | **533,168** | 188,418 |
-| fps | 30 | 30 |
+| <br />         | 本目录（单臂）                  | `dataset_new_makecoffee_train/`（双臂）                    |
+| -------------- | ------------------------ | ------------------------------------------------------ |
+| robot\_type    | `seeed_b601_rs_follower` | `bi_b601_so101_follower`                               |
+| action / state | **7** 维                  | **13** 维                                               |
+| 相机             | 3 路：hand / front / top   | 4 路：left\_hand / left\_top / left\_front / right\_hand |
+| episodes       | **223**                  | 101                                                    |
+| frames         | **533,168**              | 188,418                                                |
+| fps            | 30                       | 30                                                     |
 
 > 上表为 **2026-09-18** 当前状态（源端仍在持续录制、增量重传）。
 > 下面的「超参依据」「训练结果分析」基于 **9-16 快照**（180 episodes / 453,139 帧）。
@@ -42,17 +42,17 @@ off), put the cube on the table first, then move the cup from the coffee machine
 - 旧：188,418 ÷ (8卡 × bs8) = 2,944 steps/epoch
 - 新：453,139 ÷ 64 = 7,080 steps/epoch → **100k 步 ≈ 14 epochs**
 
-| 参数 | 值 | 说明 |
-|---|---|---|
-| `steps` | 100000 | 想严格对齐 17 epochs 可改 120000 |
-| `batch_size` | 8 | 保持与旧 run 可比 |
-| `save_freq` | 5000 | 单个 ckpt ≈ **591MB**，实测 21 个（20 + `last`）≈ **12GB**（原估 4.6GB 偏低 2.6 倍，见训练结果分析） |
-| `num_workers` | 6 | 48 核，8 进程 × 6 = 48 吃满；CPU 争抢时可回落 4 |
+| 参数            | 值      | 说明                                                                            |
+| ------------- | ------ | ----------------------------------------------------------------------------- |
+| `steps`       | 100000 | 想严格对齐 17 epochs 可改 120000                                                     |
+| `batch_size`  | 8      | 保持与旧 run 可比                                                                   |
+| `save_freq`   | 5000   | 单个 ckpt ≈ **591MB**，实测 21 个（20 + `last`）≈ **12GB**（原估 4.6GB 偏低 2.6 倍，见训练结果分析） |
+| `num_workers` | 6      | 48 核，8 进程 × 6 = 48 吃满；CPU 争抢时可回落 4                                            |
 
 > ⚠️ **原「batch 提到 16 wall-clock 约减半」的说法已被实测证伪**（见
-> [`multigpu_scaling_analysis.md`](multigpu_scaling_analysis.md) §5.2）：单卡 bs 8→16→24
+> [`bench/multigpu_scaling_analysis.md`](bench/multigpu_scaling_analysis.md) §5.2）：单卡 bs 8→16→24
 > 吞吐只有 43.1 → 45.5 → 45.9 samples/s（**+6.5%**），耗时几乎严格翻倍。
-> 显存那 72% 的余量是**冗余，不是机会** —— 每卡算力已在 ~45 samples/s 饱和。
+> 显存那 72% 的余量是**冗余，不是机会** —— 每卡算力已在 \~45 samples/s 饱和。
 > 开大 batch 只换来更大的 effective batch（仍需线性放大 lr），换不来墙钟。
 > **唯一能提速的软件手段是梯度累积**（降低同步频率），但 lerobot 不支持，需改训练循环。
 
@@ -78,6 +78,7 @@ RuntimeError: Invalid frame index=10332 for streamIndex=0; must be less than 883
 （row groups 为 `[2034, 2180, 2925, 2458, 2679, 2447, 2481, 2142, 2247, 2230, 11005]`）。
 
 证据：
+
 - parquet 实际 464,144 行 vs meta `total_frames` 453,139，差值**恰好 11,005**
 - 180 个 episode 中**只有 ep161** 对不上：parquet 13,115 vs meta 2,110
 - 全表**唯一一处** `index` 回退：物理行 429,365 处 `429364 → 418360`
@@ -105,6 +106,7 @@ RuntimeError: Invalid frame index=10332 for streamIndex=0; must be less than 883
 这次是**静默损坏**：训练不会在 step 0 崩，但会静默错配，比 9-16 那次更危险。
 
 证据：
+
 - meta `total_frames` 533,168 vs parquet 实际 544,173 行，差值**仍是 11,005**
 - `file-009.parquet` 末尾又是那个 11,005 行 row group
   （`[2034, 2180, 2925, 2458, 2679, 2447, 2481, 2142, 2247, 2230, 11005]`），
@@ -123,11 +125,12 @@ RuntimeError: Invalid frame index=10332 for streamIndex=0; must be less than 883
 - 备份：`data/chunk-000/file-009.parquet.bak`（sha256 与 9-16 记录的原始损坏版一致）
 - 只读取前 10 个 row group 重写 file-009 → 23,823 行（eps 151-160），原子替换；
   schema / SNAPPY / key-value 元数据（`ARROW:schema`、`huggingface`）原样保留
-- 校验：15 个数据文件 **物理行号 == `index` 全部对齐**；总行数 533,168 = meta；
+- 校验：15 个数据文件 **物理行号 ==** **`index`** **全部对齐**；总行数 533,168 = meta；
   `index` 单调且唯一 0..533,167；223 个 episode 边界语义全对（0 错误）；
   `LeRobotDataset` 实拉 **846 帧（223×2 边界帧 + 400 随机帧）解码 0 失败**
 
 > ⚠️ **这是第二次，且只要源端再重传就会再复现**。治本二选一：
+>
 > 1. **源端**删掉 ep161 那次录崩残留的 writer 缓冲（`tmp*/observation.images.*_161.mp4`
 >    是同一事件的痕迹，同样该清）；
 > 2. 把上面的「修复 + 校验」固化成脚本，每次同步后跑一次
@@ -147,30 +150,30 @@ python plot_train_log.py            # -> act_100k_curves.png（6 图：loss 线�
 
 ### 基本盘
 
-| 项 | 值 |
-|---|---|
-| 步数 | 100,000 |
-| 数据集 | 453,139 帧 / 180 episodes |
-| 有效 batch | 64（8 卡 × bs8） |
+| 项            | 值                                         |
+| ------------ | ----------------------------------------- |
+| 步数           | 100,000                                   |
+| 数据集          | 453,139 帧 / 180 episodes                  |
+| 有效 batch     | 64（8 卡 × bs8）                             |
 | **真实 epoch** | **14.12 个 pass**（与「超参依据」预测的 14 epochs 吻合） |
-| 墙钟 | 9h48m，均 2.83 it/s |
-| 参数量 | 52M |
-| lr | 8e-5 **恒定，无 schedule** |
+| 墙钟           | 9h48m，均 2.83 it/s                         |
+| 参数量          | 52M                                       |
+| lr           | 8e-5 **恒定，无 schedule**                    |
 
 ### loss 分段（原始 loss，每段 50 个日志点）
 
-| step 区间 | mean | std | 阶段 |
-|---|---|---|---|
-| 0–10K | 0.383 | 0.617 | 陡降 4.082 → 0.163 |
-| 10–20K | 0.162 | 0.0039 | |
-| 20–30K | 0.145 | 0.0083 | |
-| 30–40K | 0.121 | 0.0078 | |
-| 40–50K | 0.109 | 0.0078 | 慢速线性下降 |
-| 50–60K | 0.096 | 0.0110 | |
-| 60–70K | 0.095 | 0.0087 | |
-| 70–80K | 0.080 | 0.0159 | |
-| 80–90K | 0.080 | 0.0141 | 平台 |
-| 90–100K | **0.077** | 0.0144 | |
+| step 区间 | mean      | std    | 阶段               |
+| ------- | --------- | ------ | ---------------- |
+| 0–10K   | 0.383     | 0.617  | 陡降 4.082 → 0.163 |
+| 10–20K  | 0.162     | 0.0039 | <br />           |
+| 20–30K  | 0.145     | 0.0083 | <br />           |
+| 30–40K  | 0.121     | 0.0078 | <br />           |
+| 40–50K  | 0.109     | 0.0078 | 慢速线性下降           |
+| 50–60K  | 0.096     | 0.0110 | <br />           |
+| 60–70K  | 0.095     | 0.0087 | <br />           |
+| 70–80K  | 0.080     | 0.0159 | <br />           |
+| 80–90K  | 0.080     | 0.0141 | 平台               |
+| 90–100K | **0.077** | 0.0144 | <br />           |
 
 **学习几乎全发生在前 10K 步**（一个多 pass 就吃掉了绝大部分收益）；10–70K 慢速下降
 （50K 步只降 0.067）；70–100K 进入平台。
@@ -183,7 +186,7 @@ python plot_train_log.py            # -> act_100k_curves.png（6 图：loss 线�
 70–80K  0.0815 ± 0.0023
 ```
 
-末段 80–90K → 90–100K 降 0.0035，合并标准误约 0.0028，**仅 ~1.25σ**：还在降，但已降到
+末段 80–90K → 90–100K 降 0.0035，合并标准误约 0.0028，**仅 \~1.25σ**：还在降，但已降到
 噪声级别，继续训的边际收益很小。
 
 ### 观察：70K 之后噪声底噪翻倍
@@ -195,11 +198,11 @@ python plot_train_log.py            # -> act_100k_curves.png（6 图：loss 线�
 70–80K 0.0156 ← 翻倍   80–90K 0.0137   90–100K 0.0140
 ```
 
-**约 step 70K 处，batch 间 loss 波动从 ~0.008 跳到 ~0.014，之后再没降回去。**
+**约 step 70K 处，batch 间 loss 波动从 \~0.008 跳到 \~0.014，之后再没降回去。**
 拐点原因未知（lr 全程没变、数据顺序没变，日志里看不出）。它解释了后段为何会出现
 0.027 / 0.044 这种孤立低值。
 
-> ⚠️ **别把 `best 0.027` 当指标**：全程 loss<0.05 的只有 4 个孤立点
+> ⚠️ **别把** **`best 0.027`** **当指标**：全程 loss<0.05 的只有 4 个孤立点
 > （71000、78000×2、98000），全是单 batch 噪声，不代表模型能力。
 
 ### 梯度裁剪只在前 5K 步起作用
@@ -215,25 +218,25 @@ python plot_train_log.py            # -> act_100k_curves.png（6 图：loss 线�
 
 ### 单步耗时：吞吐缓慢劣化，但末段已稳住
 
-| step 区间 | update | data | it/s |
-|---|---|---|---|
-| 0–20K | 0.3072s | 0.0154s | 3.10 |
-| 20–40K | 0.3217s | 0.0154s | 2.97 |
-| 40–60K | 0.3390s | 0.0153s | 2.82 |
-| 60–80K | 0.3566s | 0.0146s | 2.69 |
+| step 区间 | update  | data    | it/s |
+| ------- | ------- | ------- | ---- |
+| 0–20K   | 0.3072s | 0.0154s | 3.10 |
+| 20–40K  | 0.3217s | 0.0154s | 2.97 |
+| 40–60K  | 0.3390s | 0.0153s | 2.82 |
+| 60–80K  | 0.3566s | 0.0146s | 2.69 |
 | 80–100K | 0.3558s | 0.0145s | 2.70 |
 
 - update 时间单调上涨 **+16%**，与 step 相关系数 **r = 0.892**（斜率 0.64 ms/1K 步）
   —— 系统性劣化而非抖动，成因日志看不出（散热 / 显存碎片 / 抢卡均可能）
 - 末 20K 稳住（0.3566 → 0.3558），不是失控退化
-- **data_s 全程只占 4.3%**，dataloader 不是瓶颈
-- `data_s` 每 **~7,000 步**尖一次（15 次，1.68×），间距 = 一个 epoch 的步数
+- **data\_s 全程只占 4.3%**，dataloader 不是瓶颈
+- `data_s` 每 **\~7,000 步**尖一次（15 次，1.68×），间距 = 一个 epoch 的步数
   （7,080）→ 是**换 epoch 时 worker 重填 buffer**，不是 checkpoint
-  （已验证：`step % 5000 == 0` 处的 data_s 与其余点无差异，比值 0.99）
+  （已验证：`step % 5000 == 0` 处的 data\_s 与其余点无差异，比值 0.99）
 
 ### 两个坑
 
-**1. 日志里的 `epch` 是真实 epoch 的 8 倍。**
+**1. 日志里的** **`epch`** **是真实 epoch 的 8 倍。**
 
 末行 `epch:112.99` 看着像训了 113 个 epoch，实际：
 
@@ -255,7 +258,7 @@ python plot_train_log.py            # -> act_100k_curves.png（6 图：loss 线�
 
 ### 日志回答不了的问题
 
-**`eval_freq: 0` —— 全程没跑过任何验证。**
+**`eval_freq: 0`** **—— 全程没跑过任何验证。**
 
 - 没有 val loss，**过拟合完全无法判断**（14 个 pass、52M 参数、453K 帧，风险真实存在
   但无证据）
@@ -275,7 +278,7 @@ loss 0.066–0.10，本 run 100K 步 0.077，同一量级。但 twin 是 **28.98
 2. **若真机效果不行**，问题不在步数（曲线已平台），而在：
    - 加 lr 衰减（现全程 8e-5 无 schedule，末期仍在全 lr 上抖）
    - 或查数据质量（70K 后噪声翻倍那条线索值得回头查）
-   - ~~bs 提到 16、lr 提到 1.2e-4，墙钟减半~~ ← **已证伪，见 `multigpu_scaling_analysis.md` §5.2**
+   - ~~bs 提到 16、lr 提到 1.2e-4，墙钟减半~~ ← **已证伪，见** **`bench/multigpu_scaling_analysis.md`** **§5.2**
 3. 补验证：`eval_freq` 调大跑少量 val，胜过现在「盲训 100K」
 4. 下轮训练加 `nvidia-smi` / 功耗采样，定位 update 时间 +16% 的来源
 5. 想缩短墙钟只有两条路（都不省事）：**梯度累积**（需改 lerobot 训练循环，理论上限 +50%）
@@ -286,3 +289,4 @@ loss 0.066–0.10，本 run 100K 步 0.077，同一量级。但 twin 是 **28.98
 - 数据集根目录下的 `tmp*/` 是录制时的残留编码临时目录，不影响训练。
 - **读日志时注意**：`ot_train.py:444` 行的 `epch` / `ep` 是 8 个 rank 累加值，
   除以 8 才是真实 epoch；或直接用 `step × 64 ÷ 453139`。
+
