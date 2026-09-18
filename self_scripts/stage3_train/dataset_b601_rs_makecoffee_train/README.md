@@ -22,9 +22,12 @@
 | robot_type | `seeed_b601_rs_follower` | `bi_b601_so101_follower` |
 | action / state | **7** 维 | **13** 维 |
 | 相机 | 3 路：hand / front / top | 4 路：left_hand / left_top / left_front / right_hand |
-| episodes | 180 | 101 |
-| frames | 453,139 | 188,418 |
+| episodes | **223** | 101 |
+| frames | **533,168** | 188,418 |
 | fps | 30 | 30 |
+
+> 上表为 **2026-09-18** 当前状态（源端仍在持续录制、增量重传）。
+> 下面的「超参依据」「训练结果分析」基于 **9-16 快照**（180 episodes / 453,139 帧）。
 
 任务：`Pick up the paper cup, place it on the silver tray of the coffee machine, pick up the cube,
 press the button with the cube (red light on), wait about 4 seconds, release the button (red light
@@ -92,6 +95,43 @@ RuntimeError: Invalid frame index=10332 for streamIndex=0; must be less than 883
 
 > 若日后从源端重传此数据集，该损坏很可能**原样复现**（残留的
 > `tmpb_cyevai/observation.images.top_161.mp4` 同样指向 ep161，说明崩溃在源端录制阶段）。
+
+## 数据集修复记录（2026-09-18，同一损坏复现）
+
+9-18 源端增量重传（新增 43 条，180 → 223 episodes，`data/file-013/014`）后，
+**9-16 修好的 file-009 被覆盖回损坏版本**，且与原始损坏版**逐字节相同**
+（sha256 `81518caf...f0068`）——上面 9-16 那条预言应验了。
+
+这次是**静默损坏**：训练不会在 step 0 崩，但会静默错配，比 9-16 那次更危险。
+
+证据：
+- meta `total_frames` 533,168 vs parquet 实际 544,173 行，差值**仍是 11,005**
+- `file-009.parquet` 末尾又是那个 11,005 行 row group
+  （`[2034, 2180, 2925, 2458, 2679, 2447, 2481, 2142, 2247, 2230, 11005]`），
+  整块标 `episode_index=161`，`index` 418360..429364，timestamp 0..366.8s
+- **真正的 ep161 只有 2,110 帧**（70.3s），在 `file-010.parquet`
+- `物理行号 == index` 在 file-000..009 成立，**file-010 起整体偏移 +11,005**
+- 视频侧仍然完好：80 个 mp4 全部存在、0 截断（`tmp*/` 里 ep161 录崩残留照旧不影响训练）
+- `meta/stats.json` 的 count 是 533,168（按逻辑视图算的），**未被污染，无需重算**
+
+后果：`LeRobotDataset` 靠「物理行号 == `index`」定位，**ep162 之后约 112,698 帧（≈21%）**
+的 state/action 会取到错误 episode 的行，而视频仍按 meta 的 episode/timestamp 查
+→ 图文错配。loss 曲线看着正常，学的却是错的。
+
+**修复**（同 9-16 方法，按 row group 边界无损删除）：
+
+- 备份：`data/chunk-000/file-009.parquet.bak`（sha256 与 9-16 记录的原始损坏版一致）
+- 只读取前 10 个 row group 重写 file-009 → 23,823 行（eps 151-160），原子替换；
+  schema / SNAPPY / key-value 元数据（`ARROW:schema`、`huggingface`）原样保留
+- 校验：15 个数据文件 **物理行号 == `index` 全部对齐**；总行数 533,168 = meta；
+  `index` 单调且唯一 0..533,167；223 个 episode 边界语义全对（0 错误）；
+  `LeRobotDataset` 实拉 **846 帧（223×2 边界帧 + 400 随机帧）解码 0 失败**
+
+> ⚠️ **这是第二次，且只要源端再重传就会再复现**。治本二选一：
+> 1. **源端**删掉 ep161 那次录崩残留的 writer 缓冲（`tmp*/observation.images.*_161.mp4`
+>    是同一事件的痕迹，同样该清）；
+> 2. 把上面的「修复 + 校验」固化成脚本，每次同步后跑一次
+>    （9-16 和 9-18 两次都是手工做的，仓库里没留下脚本，所以第二次才发现得晚）。
 
 ## 训练结果分析（100K 步 run，2026-09-16 19:00 → 09-17 04:48）
 
