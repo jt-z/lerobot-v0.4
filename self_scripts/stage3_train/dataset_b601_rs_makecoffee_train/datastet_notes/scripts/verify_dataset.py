@@ -6,6 +6,7 @@
     2. 每个文件 物理行号 == index 值
     3. 全局 index 单调唯一，恰为 0..N-1
     4. episode 边界语义：dataset_from_index 处确为该集且 frame_index==0
+    5. 每集独占一段连续区间（episode_index 切换次数 == 集数-1）
 
 解码层（--decode，需 lerobot conda 环境）:
     LeRobotDataset 实拉 每集首末帧 + N 个随机帧，校验 episode/frame 定位与图像解码
@@ -14,6 +15,27 @@
     python verify_dataset.py --root /data/share/b601_20260910_164106
     python verify_dataset.py --root /data/share/b601_20260910_164106 --decode
     python verify_dataset.py --root ... --decode --random 400 --seed 0
+
+分工（重要）
+------------
+本仓库有**两份** verify_dataset.py，刻意分工，不要互相覆盖：
+
+    datastet_notes/scripts/verify_dataset.py   ← 本文件
+        「人读报告」：5 项编号检查，输出便于人工判读；**只校验，不改数据**。
+    bench/verify_dataset.py
+        「CI / 同步钩子」：额外提供 `--fix`（自动修复，落盘前验证）、
+        `--video`（ffprobe 容器帧数 vs meta）、`--json`。
+
+⚠️ 两份的**检测判据不同**，改判据时必须同步两边：
+
+    * 本文件判据 2 是「每个文件 物理起始行号 == 该文件首行 index」
+      —— 这是**症状级**检测。注意那个残留块会把 file-010 之后的**所有**文件
+      整体推移，所以「错位数 = 受影响文件数」会远多于 1，不要据此决定删除范围。
+    * bench/ 那份用「**`index` 值重复**」作为判据 —— 这是**根因级**检测，
+      能精确定位到 1 个 row group；`--fix` 也只删这一处。
+
+    真正需要修复的实体只有一处（残留 row group）；本文件判据 1（总行数不符）
+    与判据 2 都是它的症状。
 """
 from __future__ import annotations
 

@@ -26,6 +26,36 @@
 | [`scripts/fix_file009.py`](scripts/fix_file009.py) | 幂等修复：丢弃 file-009 末尾多的 11,005 行 row group，先备份再原子替换 | `python scripts/fix_file009.py --root /data/share/b601_20260910_164106`（加 `--dry-run` 只检查） |
 | [`scripts/verify_dataset.py`](scripts/verify_dataset.py) | 结构校验（不需要 GPU）；`--decode` 追加 `LeRobotDataset` 实拉解码校验 | `python scripts/verify_dataset.py --root ... [--decode]` |
 
+### 自动钩子（已安装）
+
+[`../bench/post_sync_check.sh`](../bench/post_sync_check.sh) + [`../bench/install_hook.sh`](../bench/install_hook.sh)
+—— 每 10 分钟轮询，检出损坏即自动修复并记日志，**不需要人工记得跑**。
+三重守卫（单实例 / 数据静默 ≥5 分钟 / 无训练在跑）+ 指纹短路（没变就零成本退出）。
+详见 [`05-预防与治本方案.md`](05-预防与治本方案.md) 的「已实现」小节。
+
+```bash
+bash bench/install_hook.sh status     # 看状态与最近日志
+bash bench/install_hook.sh run        # 立即跑一次
+bash bench/install_hook.sh uninstall  # 卸载
+```
+
+### 与 `bench/verify_dataset.py` 的分工
+
+仓库里有**两份** `verify_dataset.py`，刻意分工，**不要互相覆盖**：
+
+| | 本目录 `scripts/` | [`../bench/verify_dataset.py`](../bench/verify_dataset.py) |
+|---|---|---|
+| 定位 | **人读报告**：5 项编号检查，便于人工判读 | **CI / 同步钩子** |
+| 改数据 | ❌ 只读 | ✅ `--fix`（落盘前先验证） |
+| 视频检查 | ❌ | ✅ `--video`（ffprobe 容器帧数 vs meta） |
+| 机器可读 | ❌ | ✅ `--json`（stdout 纯 JSON） |
+| 检测判据 | 文件边界 `物理起始行号 == index`（**症状级**） | `index` 值**重复**（**根因级**，精确定位 1 个 row group） |
+
+> ⚠️ **改判据时两份都要同步。** 另外注意：本目录那份的判据 2 是**症状级** ——
+> 那个残留块会把 file-010 之后**所有**文件整体推移，所以「错位文件数」会远多于 1，
+> **不要据此决定删除范围**。真正多余的只有一处残留 row group，其 `index` 值
+> 与后面合法行的 `index` 一一重复（`bench/` 那份用这个判据定位）。
+
 > ⚠️ 已知本目录名 `datastet_notes` 是 `dataset_notes` 的笔误（按用户给定路径原样创建）。
 
 ## 快速自检
