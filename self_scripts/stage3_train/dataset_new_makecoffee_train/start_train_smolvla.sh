@@ -15,11 +15,18 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 OUTPUT_DIR="output_lerobot_train/smolvla_coffee_cup_button_20260826_232220"
 CHECKPOINT_CONFIG="$OUTPUT_DIR/checkpoints/last/pretrained_model/train_config.json"
-LOG_FILE="$OUTPUT_DIR/logs/train_smolvla.log"
+
+# ⚠️ 日志**不能**放在 $OUTPUT_DIR 里面。
+# lerobot 的 TrainPipelineConfig.validate() 在「output_dir 已存在且非 resume」时会直接抛
+# FileExistsError —— 而写日志要先 mkdir，那个 mkdir 会**先把 output_dir 建出来**，
+# 于是全新训练时启动器自己把 lerobot 拦下了（resume 时因为目录本来就存在，反而看不出问题）。
+# 所以日志放到 output_dir 的**同级**目录。
+LOG_FILE="$(dirname "$OUTPUT_DIR")/logs/$(basename "$OUTPUT_DIR").log"
 
 # 保证 tee 管道退出码等于 lerobot-train 的退出码（而非 tee 的）
 set -o pipefail
-mkdir -p "$OUTPUT_DIR/logs"
+# 只建日志目录（output_dir 的同级），不碰 output_dir 本身
+mkdir -p "$(dirname "$LOG_FILE")"
 
 if [ -f "$CHECKPOINT_CONFIG" ]; then
     echo "检测到checkpoint，将从上次训练继续（日志: $LOG_FILE）"
