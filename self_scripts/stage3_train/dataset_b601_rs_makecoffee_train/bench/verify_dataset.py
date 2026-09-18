@@ -41,6 +41,25 @@ row group 都推移，于是 60+ 个组全部"错位" —— 照此删除会删�
 
 退出码：0 = 通过；1 = 检出问题（或修复失败）；2 = 脚本自身出错。
 
+分工（重要）
+------------
+本仓库有**两份** verify_dataset.py，刻意分工，不要互相覆盖：
+
+    datastet_notes/scripts/verify_dataset.py
+        「人读报告」：5 项编号检查，输出便于人工判读；**只校验，不改数据**。
+    bench/verify_dataset.py   ← 本文件
+        「CI / 同步钩子」：额外提供 `--fix`（自动修复，落盘前验证）、
+        `--video`（ffprobe 容器帧数 vs meta）、`--json`（stdout 纯 JSON）。
+
+⚠️ 两份的**检测判据不同**，改判据时必须同步两边：
+
+    * datastet_notes/ 那份用「文件边界 物理起始行号 == index」—— **症状级**检测。
+    * 本文件用「**`index` 值重复**」—— **根因级**检测，能精确定位到 1 个 row group。
+
+    为什么必须用后者：残留块会把下游**所有** row group 整体推移 11,005，
+    按「位置错位」去删会命中 60+ 个组（实测 62 个），删掉大半个数据集。
+    真正多余的行只有一处，其 `index` 值与后面合法行的 `index` **一一重复**。
+
 设计原则
 --------
 * **默认只读**。修复必须显式 `--fix`。
@@ -483,19 +502,7 @@ def main() -> int:
 
     ok = (sc["n_bogus"] == 0) and not errs
 
-    if args.json:
-        print(json.dumps({
-            "root": str(root),
-            "total_rows": sc["total_rows"],
-            "meta_total_frames": info.get("total_frames"),
-            "n_files": len(sc["files"]),
-            "n_bogus_rows": sc["n_bogus"],
-            "n_misaligned_rows": sc["n_misaligned_rows"],
-            "strategy": sc["strategy"],
-            "errors": errs,
-            "ok": ok,
-        }, ensure_ascii=False, indent=2))
-    else:
+    if not args.json:
         print(f"数据集：{root}")
         print(f"  数据文件        : {len(sc['files'])} 个")
         print(f"  总行数          : {human(sc['total_rows'])}")
@@ -530,11 +537,47 @@ def main() -> int:
         elif not errs:
             print("\n✓ 全部不变量成立（index 无重复、物理行号 == index、episode 边界自洽）")
 
-    if ok:
-        return 0
-    if not args.fix:
-        return 1
-    return 0 if repair(root, sc, info, args.yes) else 1
+    # ---- 修复（若要求），之后以「最终状态」出报告 ----
+    fixed = False
+    if not ok and args.fix:
+        if args.json:
+            # --json 模式下让修复过程的进度输出走 stderr，保证 stdout 只有一份 JSON
+            _real, sys.stdout = sys.stdout, sys.stderr
+            try:
+                fixed = repair(root, sc, info, args.yes)
+            finally:
+                sys.stdout = _real
+        else:
+            fixed = repair(root, sc, info, args.yes)
+        if fixed:
+            try:
+                info, eps = read_meta(root)
+                sc2 = scan(root)
+                errs2 = check_meta_consistency(root, sc2, info) + check_episodes(root, sc2, eps)
+                sc, errs = sc2, errs2
+                ok = (sc["n_bogus"] == 0) and not errs
+            except Exception as ex:  # noqa: BLE001
+                print(f"✗ 修复后复检失败：{ex}", file=sys.stderr)
+                ok = False
+
+    if args.json:
+        print(json.dumps({
+            "root": str(root),
+            "total_rows": sc["total_rows"],
+            "meta_total_frames": info.get("total_frames"),
+            "n_files": len(sc["files"]),
+            "n_bogus_rows": sc["n_bogus"],
+            "n_misaligned_rows": sc["n_misaligned_rows"],
+            "strategy": sc["strategy"],
+            "fixed": fixed,
+            "errors": errs,
+            "ok": ok,
+        }, ensure_ascii=False, indent=2))
+    elif fixed:
+        print(f"\n修复完成：现在 {human(sc['total_rows'])} 行，"
+              f"meta {human(info.get('total_frames', -1))} 行。")
+
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
