@@ -14,6 +14,17 @@
 >
 > 📄 **ACT 参数构成分析** → [`bench/model_param_analysis.md`](bench/model_param_analysis.md)
 > （78.4% 从零训 / 21.6% ImageNet 预训练、FrozenBatchNorm2d、VAE encoder 推理不执行）
+>
+> 📄 **SmolVLA 模型构成与显存分析** → [`SmolVLA_模型与显存分析.md`](SmolVLA_模型与显存分析.md)
+> （**450M 全部来自 `smolvla_base` 预训练、零随机初始化**，只训 99.88M/450M，单卡 4.5 GB；
+> 冻结 VLM 省不掉它的 2.14 GB 激活；附 `--policy.path` 在本环境会崩的坑）
+>
+> ⚠️ **别把 ACT 的「78.4% 从零训」类推到 SmolVLA** —— 两者范式相反：
+> ACT 用 223 ep 训 78% 的参数，SmolVLA 是纯微调 22% 的 expert。详见该文档 §1.1。
+>
+> ⚠️ **指令被静默截断（哑弹）**：`meta/tasks.parquet` 的任务串 66 token，被
+> `tokenizer_max_length=48` + `truncation_side="left"` 截掉**开头（含任务主目标）**。
+> 单任务下被「语言是常量」掩盖，**做多任务前必须改**。详见该文档 §9。
 
 ## 数据集 `/data/share/b601_20260910_164106`
 

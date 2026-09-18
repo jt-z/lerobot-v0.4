@@ -7,6 +7,7 @@
 |---|---|
 | [`smolvla_train_config.json`](smolvla_train_config.json) | 训练配置 |
 | [`start_train_smolvla.sh`](start_train_smolvla.sh) | 启动器（带前置数据校验门禁） |
+| [`SmolVLA_模型与显存分析.md`](SmolVLA_模型与显存分析.md) | **模型构成 / 训练参数 / 显存账本**（4.5 GB 从哪来） |
 
 ACT 版见 [`ACT_v2_训练说明.md`](ACT_v2_训练说明.md)；数据集侧的损坏/修复背景见
 [`datastet_notes/`](datastet_notes/)。
