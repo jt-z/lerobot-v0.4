@@ -5,6 +5,13 @@
 ⚠️ 与隔壁 `dataset_new_makecoffee_train/`（**双臂** `bi_b601_so101_follower`）是两套
 独立训练，本体不同、checkpoint 不通用，见下表。
 
+> 📄 **多卡扩展性与卡间通信分析** → [`multigpu_scaling_analysis.md`](multigpu_scaling_analysis.md)
+> （**实测 8 卡只有 5.31× / 效率 66.4%**，根因是 PCIe P2P 不可用 → NCCL 走主机内存 →
+> 带宽仅 3 GB/s。含 scaling / batch / allreduce / **组拆分** 四组 benchmark）
+>
+> 💡 **要跑多个实验（超参扫描、多任务）时**：别用 8 卡 DDP，**拆成独立任务并发**
+> （`bench/run_split.sh 1 600`）实测能多拿 **+46.5%** 吞吐，零代码改动。详见该文档 §8.4。
+
 ## 数据集 `/data/share/b601_20260910_164106`
 
 | | 本目录（单臂） | `dataset_new_makecoffee_train/`（双臂） |
@@ -36,9 +43,12 @@ off), put the cube on the table first, then move the cup from the coffee machine
 | `save_freq` | 5000 | 单个 ckpt ≈ **591MB**，实测 21 个（20 + `last`）≈ **12GB**（原估 4.6GB 偏低 2.6 倍，见训练结果分析） |
 | `num_workers` | 6 | 48 核，8 进程 × 6 = 48 吃满；CPU 争抢时可回落 4 |
 
-**备选**：本数据集只有 3 路相机（旧的 4 路），显存占用更低，`batch_size` 提到 16/GPU
-（全局 128）大概率放得下，wall-clock 约减半 —— 但需同步把 `optimizer_lr` 从 `8e-5`
-线性放大到约 `1.2e-4`。
+> ⚠️ **原「batch 提到 16 wall-clock 约减半」的说法已被实测证伪**（见
+> [`multigpu_scaling_analysis.md`](multigpu_scaling_analysis.md) §5.2）：单卡 bs 8→16→24
+> 吞吐只有 43.1 → 45.5 → 45.9 samples/s（**+6.5%**），耗时几乎严格翻倍。
+> 显存那 72% 的余量是**冗余，不是机会** —— 每卡算力已在 ~45 samples/s 饱和。
+> 开大 batch 只换来更大的 effective batch（仍需线性放大 lr），换不来墙钟。
+> **唯一能提速的软件手段是梯度累积**（降低同步频率），但 lerobot 不支持，需改训练循环。
 
 ## 运行
 
@@ -221,10 +231,12 @@ loss 0.066–0.10，本 run 100K 步 0.077，同一量级。但 twin 是 **28.98
    下一步的动作）
 2. **若真机效果不行**，问题不在步数（曲线已平台），而在：
    - 加 lr 衰减（现全程 8e-5 无 schedule，末期仍在全 lr 上抖）
-   - 或按「超参依据」的备选：bs 提到 16、lr 提到 1.2e-4，墙钟减半
    - 或查数据质量（70K 后噪声翻倍那条线索值得回头查）
+   - ~~bs 提到 16、lr 提到 1.2e-4，墙钟减半~~ ← **已证伪，见 `multigpu_scaling_analysis.md` §5.2**
 3. 补验证：`eval_freq` 调大跑少量 val，胜过现在「盲训 100K」
 4. 下轮训练加 `nvidia-smi` / 功耗采样，定位 update 时间 +16% 的来源
+5. 想缩短墙钟只有两条路（都不省事）：**梯度累积**（需改 lerobot 训练循环，理论上限 +50%）
+   或 **装 NVLink 桥**（修 P2P，预计效率回到 85%+）
 
 ## 备注
 
