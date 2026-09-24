@@ -11,43 +11,43 @@
 > `nvidia-smi`）；**【推算】** = 由实测数据加减得到的；**【文献】** = 引自 SmolVLA 论文
 > / 模型卡，未在本机复现。复现脚本见 §7。
 
----
+***
 
 ## 0. 结论摘要
 
-| 问题 | 结论 |
-|---|---|
-| 总参数量？ | **450.0M**，常驻权重仅 **1.198 GB**（混合精度，不是全 fp32） |
-| 实际训练多少？ | **99.88M（22.2%）** —— 只有 action expert + 投影头 |
-| **有预训练权重的参数？** | **450M / 450M（100%）**，与 `smolvla_base` 逐比特相同，**没有任何随机初始化** |
-| 和 ACT 一样「大部分从零训」吗？ | **完全相反** —— ACT 78.4% 从零训，SmolVLA **0%**（见 §1.1） |
-| 冻结 SigLIP/SmolLM2 会让 b601 效果差吗？ | **不必然** —— 冻结是设计而非妥协；真风险在数据量（见 §8） |
-| 冻结 `lm_head` 呢？ | **无影响** —— 它在 forward 里根本不执行（见 §1.2） |
-| 指令有没有问题？ | ⚠️ **被静默截断 66→48，丢的是任务主目标**（见 §9） |
-| 冻结了 350M 参数，所以省显存？ | **只省了优化器状态，激活一点没省** |
-| 为什么只占 4.5 GB？ | **只训 22% 参数** → AdamW 状态只建 99.88M 的量 |
-| 4.5 GB 里最大的是什么？ | **前向激活 2.14 GB**（bs=8/卡），比权重本身还大 |
-| 显存还有 20 GB 富余，能开大 batch 提速吗？ | **不建议**，理由见 §6，与 ACT 那边实测结论一致 |
+| 问题                              | 结论                                                         |
+| ------------------------------- | ---------------------------------------------------------- |
+| 总参数量？                           | **450.0M**，常驻权重仅 **1.198 GB**（混合精度，不是全 fp32）               |
+| 实际训练多少？                         | **99.88M（22.2%）** —— 只有 action expert + 投影头                |
+| **有预训练权重的参数？**                  | **450M / 450M（100%）**，与 `smolvla_base` 逐比特相同，**没有任何随机初始化** |
+| 和 ACT 一样「大部分从零训」吗？              | **完全相反** —— ACT 78.4% 从零训，SmolVLA **0%**（见 §1.1）           |
+| 冻结 SigLIP/SmolLM2 会让 b601 效果差吗？ | **不必然** —— 冻结是设计而非妥协；真风险在数据量（见 §8）                         |
+| 冻结 `lm_head` 呢？                 | **无影响** —— 它在 forward 里根本不执行（见 §1.2）                       |
+| 指令有没有问题？                        | ⚠️ **被静默截断 66→48，丢的是任务主目标**（见 §9）                          |
+| 冻结了 350M 参数，所以省显存？              | **只省了优化器状态，激活一点没省**                                        |
+| 为什么只占 4.5 GB？                   | **只训 22% 参数** → AdamW 状态只建 99.88M 的量                       |
+| 4.5 GB 里最大的是什么？                 | **前向激活 2.14 GB**（bs=8/卡），比权重本身还大                           |
+| 显存还有 20 GB 富余，能开大 batch 提速吗？    | **不建议**，理由见 §6，与 ACT 那边实测结论一致                              |
 
 **一句话**：4.5 GB 是「只微调 action expert」这个设计的结果，不是模型本身小。
 而且**冻结 VLM 并没有省掉它的激活** —— cross-attn 结构决定了 VLM 每层的 hidden state
 必须为反向保留，这 2 GB 是省不掉的。
 
----
+***
 
 ## 1. 模型构成【实测】
 
-`load_vlm_weights=False`（**你的 JSON 配置覆盖了 base 的 `True`**，见 §5 的坑），
+`load_vlm_weights=False`（**你的 JSON 配置覆盖了 base 的** **`True`**，见 §5 的坑），
 所以 VLM 是按 config 新建的，**dtype 并不统一**：
 
-| 组件 | 参数量 | 占比 | dtype | 显存 | 训练 |
-|---|---:|---:|---|---:|---|
-| vision encoder (SigLIP) | 86.4M | 19.2% | **fp32** | 0.346 GB | ✗ |
-| vlm_text (SmolLM2，取前 16 层，hidden 960) | 204.6M | 45.5% | **bf16** | 0.409 GB | ✗ |
-| lm_head | 47.3M | 10.5% | **fp32** | 0.189 GB | ✗ |
-| **action expert**（16 层，hidden 720） | 98.2M | 21.8% | bf16 97M + fp32 2M | 0.200 GB | **✓** |
-| proj heads / connector | 13.4M | 3.0% | fp32 | 0.054 GB | 部分 ✓ |
-| **合计** | **450.0M** | 100% | 混合 | **1.198 GB** | **99.88M** |
+| 组件                                     |        参数量 |    占比 | dtype              |           显存 | 训练         |
+| -------------------------------------- | ---------: | ----: | ------------------ | -----------: | ---------- |
+| vision encoder (SigLIP)                |      86.4M | 19.2% | **fp32**           |     0.346 GB | ✗          |
+| vlm\_text (SmolLM2，取前 16 层，hidden 960) |     204.6M | 45.5% | **bf16**           |     0.409 GB | ✗          |
+| lm\_head                               |      47.3M | 10.5% | **fp32**           |     0.189 GB | ✗          |
+| **action expert**（16 层，hidden 720）     |      98.2M | 21.8% | bf16 97M + fp32 2M |     0.200 GB | **✓**      |
+| proj heads / connector                 |      13.4M |  3.0% | fp32               |     0.054 GB | 部分 ✓       |
+| **合计**                                 | **450.0M** |  100% | 混合                 | **1.198 GB** | **99.88M** |
 
 - 训练日志实测：`num_learnable_params=99880992` / `num_total_params=450046176` ✔ 吻合
 - 1.198 GB 与早先 run 落盘的
@@ -56,24 +56,24 @@
 
 > `vlm_text 204.6M` 对应 SmolLM2-360M 截断到 16 层（`num_vlm_layers=16`）；
 > expert hidden = 960 × `expert_width_multiplier 0.75` = 720。
-> 语言 embedding 与 lm_head **未 tying**，所以 lm_head 单独占 47.3M。
+> 语言 embedding 与 lm\_head **未 tying**，所以 lm\_head 单独占 47.3M。
 
 ### 1.1 ⚠️ 权重来源：全部 450M 都来自预训练，**没有随机初始化**
 
 日志里出现 `load_vlm_weights=False`，很容易读成「VLM 权重不加载 = 随机初始化」——**不是**。
 两条加载路径是**冗余**的，都能拿到 VLM 权重：
 
-| 路径 | 来源 | 本 run |
-|---|---|---|
-| `load_vlm_weights=True` | 从 HF 拉原始 `HuggingFaceTB/SmolVLM2-500M-Video-Instruct` | ✗ 关闭（且在本环境会崩，见 §5） |
-| `--policy.pretrained_path` | 从 `lerobot/smolvla_base` 拉**完整 450M**（已含 VLM + expert） | ✓ 生效 |
+| 路径                         | 来源                                                     | 本 run              |
+| -------------------------- | ------------------------------------------------------ | ------------------ |
+| `load_vlm_weights=True`    | 从 HF 拉原始 `HuggingFaceTB/SmolVLM2-500M-Video-Instruct`  | ✗ 关闭（且在本环境会崩，见 §5） |
+| `--policy.pretrained_path` | 从 `lerobot/smolvla_base` 拉**完整 450M**（已含 VLM + expert） | ✓ 生效               |
 
-即 `False` 只是省掉「先从 HF 拉一遍 SmolVLM2、再被 smolvla_base 覆盖」的重复 I/O；
-最终权重一样，而且**来自 smolvla_base 的那个更好**（是已经过机器人数据预训练的版本，
+即 `False` 只是省掉「先从 HF 拉一遍 SmolVLM2、再被 smolvla\_base 覆盖」的重复 I/O；
+最终权重一样，而且**来自 smolvla\_base 的那个更好**（是已经过机器人数据预训练的版本，
 不是原始 VLM）。另外训练日志里 8 个 rank 的 `log_model_loading_keys` **一条 missing /
 unexpected key 的 warning 都没打**。
 
-**【实测】重建模型 vs `smolvla_base/model.safetensors`，逐张量 bit 级比对**（复现见 §7.5）：
+**【实测】重建模型 vs** **`smolvla_base/model.safetensors`，逐张量 bit 级比对**（复现见 §7.5）：
 
 ```
 文件 key 数 500   模型 key 数 500
@@ -85,26 +85,27 @@ unexpected key 的 warning 都没打**。
 
 **与 ACT 的对比 —— 这是两者最大的结构性差异**：
 
-| | ACT | SmolVLA |
-|---|---:|---:|
-| 有预训练权重的参数 | 11.2M / 51.6M（**21.6%**，只有 ResNet18 backbone） | **450M / 450M（100%）** |
-| 本次 run 之内从零训 | **40.4M（78.4%）** | **0** |
-| 本次 run 可训练 | 51.6M（全量，含从零的 transformer） | 99.88M（只有 expert + 投影头） |
-| 你的 223 ep / 533k 帧 的作用 | **训 78% 的参数** | **微调 22% 的参数** |
+| <br />                 |                                           ACT |                 SmolVLA |
+| ---------------------- | --------------------------------------------: | ----------------------: |
+| 有预训练权重的参数              | 11.2M / 51.6M（**21.6%**，只有 ResNet18 backbone） |   **450M / 450M（100%）** |
+| 本次 run 之内从零训           |                              **40.4M（78.4%）** |                   **0** |
+| 本次 run 可训练             |                    51.6M（全量，含从零的 transformer） | 99.88M（只有 expert + 投影头） |
+| 你的 223 ep / 533k 帧 的作用 |                                 **训 78% 的参数** |          **微调 22% 的参数** |
 
-> ⚠️ **`bench/model_param_analysis.md` 里 ACT 那句「78.4% 从零训」不能类推到 SmolVLA。**
+> ⚠️ **`bench/model_param_analysis.md`** **里 ACT 那句「78.4% 从零训」不能类推到 SmolVLA。**
 > 两个 run 走的是相反的范式：ACT 基本从零学，SmolVLA 是纯微调。
 
-**`smolvla_base` 本身是怎么来的**【文献，SmolVLA 论文 arXiv:2506.01844 / HF blog】：
+**`smolvla_base`** **本身是怎么来的**【文献，SmolVLA 论文 arXiv:2506.01844 / HF blog】：
 
 - 骨干 SmolVLM2-500M（SigLIP + SmolLM2）来自 VLM 预训练
-- action expert ~100M **没有可继承的预训练权重**（flow-matching expert 在 VLM 生态里
+- action expert \~100M **没有可继承的预训练权重**（flow-matching expert 在 VLM 生态里
   不存在现成来源），所以在 SmolVLA 预训练**开始时**确实是随机的 —— 但随后吃了约
-  **481 个 LeRobot 社区数据集 / ~22.9k episodes / ~10.6M 帧**（以 SO-100/SO-101 为主，30 FPS）
+  **481 个 LeRobot 社区数据集 / \~22.9k episodes / \~10.6M 帧**（以 SO-100/SO-101 为主，30 FPS）
 - 论文消融：**去掉**社区预训练时 SO100 成功率 51.7%，**有**预训练后 78.3%（+26.6 个点）
 
 > **对本项目的两个含义**：
-> 1. b601_rs **不是** SO-100/SO-101 系列，所以这仍是一次**跨本体迁移** —— 预训练权重
+>
+> 1. b601\_rs **不是** SO-100/SO-101 系列，所以这仍是一次**跨本体迁移** —— 预训练权重
 >    不是「同款手臂」的，但量级上远好过从零训。
 > 2. 起点是预训练好的策略，SmolVLA **很可能比 ACT 更早收敛**，100K 步里可能有一段
 >    是在平台上空转。要确认只能上真机 rollout 对比不同 ckpt（与 ACT 那边结论一致）。
@@ -124,7 +125,7 @@ models = [self.get_vlm_model().text_model, self.lm_expert]
 > 所以「冻结 `lm_head` 导致 b601 效果差」这条因果链**不存在**：
 > 不参与计算的东西，冻结与否对输出没有任何影响。
 
----
+***
 
 ## 2. 为什么优化器状态这么小 —— 只训 22%
 
@@ -148,39 +149,39 @@ if self.train_expert_only:
 于是可训参数只剩 **99.88M**，而 PyTorch 只为 `requires_grad=True` 的参数建
 梯度与 AdamW 状态：
 
-| 项 | 全量微调（假想） | **本 run（实测）** |
-|---|---:|---:|
-| 权重常驻 | 1.20 GB | **1.21 GB**（冻结的也要在显存里） |
-| 梯度 | 0.83 GB | **0.32 GB** |
-| AdamW (m+v) | 1.66 GB | **0.41 GB** |
-| 小计 | **3.69 GB** | **1.94 GB** |
+| 项           |    全量微调（假想） |          **本 run（实测）** |
+| ----------- | ----------: | ---------------------: |
+| 权重常驻        |     1.20 GB | **1.21 GB**（冻结的也要在显存里） |
+| 梯度          |     0.83 GB |            **0.32 GB** |
+| AdamW (m+v) |     1.66 GB |            **0.41 GB** |
+| 小计          | **3.69 GB** |            **1.94 GB** |
 
 **AdamW 0.41 GB 得到了独立验证**：早先 run 落盘的
 `training_state/optimizer_state.safetensors` = **412.66 MB**，
 而 2 × 0.206 GB = 0.412 GB ✔ 完全对上。
 
 > 若全量微调，光静态状态就 3.69 GB，再加 2.14 GB 激活 → 接近 6 GB，仍能塞进 3090，
-> 但**「省」从来不是 4.5 GB 的原因**，激活才是大头（下一节）。
+> 但\*\*「省」从来不是 4.5 GB 的原因\*\*，激活才是大头（下一节）。
 
----
+***
 
 ## 3. 显存账【实测】
 
 单卡 bs=8 的前向 + 反向探针（随机权重，合成数据），与真实 run 对照：
 
-| 项 | 实测 | 说明 |
-|---|---:|---|
-| 权重常驻 | 1.21 GB | 450M 混合精度 |
-| **前向激活** | **2.14 GB** | ← **最大头**，比权重还大 |
-| 梯度 | 0.32 GB | 只为 99.88M 可训参数建 |
-| AdamW (m+v) | 0.41 GB | 与落盘 optimizer state 吻合 |
-| CUDA context / 分配器开销 | ~0.5 GB | cuBLAS/cuDNN handle、NCCL buffer、碎片 |
-| **合计** | **≈ 4.5 GB** | `nvidia-smi` 实测 **4550–4592 MiB** ✔ |
+| 项                    |           实测 | 说明                                  |
+| -------------------- | -----------: | ----------------------------------- |
+| 权重常驻                 |      1.21 GB | 450M 混合精度                           |
+| **前向激活**             |  **2.14 GB** | ← **最大头**，比权重还大                     |
+| 梯度                   |      0.32 GB | 只为 99.88M 可训参数建                     |
+| AdamW (m+v)          |      0.41 GB | 与落盘 optimizer state 吻合              |
+| CUDA context / 分配器开销 |     \~0.5 GB | cuBLAS/cuDNN handle、NCCL buffer、碎片  |
+| **合计**               | **≈ 4.5 GB** | `nvidia-smi` 实测 **4550–4592 MiB** ✔ |
 
 单步峰值（`torch.cuda.max_memory_allocated`）：bs=8 → **3.48 GB**（不含优化器状态，
-优化器在首个 step 之后才分配，加上即 ~3.9 GB）。
+优化器在首个 step 之后才分配，加上即 \~3.9 GB）。
 
----
+***
 
 ## 4. 关键机制：冻结了 VLM，为什么还有 2 GB 激活？
 
@@ -193,16 +194,16 @@ if self.train_expert_only:
 
 ### 4.2 实测否掉了它
 
-| 配置 | 前向激活 | `prefix.requires_grad` |
-|---|---:|---|
-| 基线（`train_state_proj=True`） | 2.14 GB | True |
-| `train_state_proj=False` | **2.12 GB** | **False** |
+| 配置                          |        前向激活 | `prefix.requires_grad` |
+| --------------------------- | ----------: | ---------------------- |
+| 基线（`train_state_proj=True`） |     2.14 GB | True                   |
+| `train_state_proj=False`    | **2.12 GB** | **False**              |
 
 **白冻了 —— 激活几乎没变。** 假设不成立。
 
 ### 4.3 真正的原因：expert 的 k/v 投影吃的是 VLM 的 hidden state
 
-`smolvlm_with_expert.py:109-123`，cross_attn 模式下 expert 的 k_proj / v_proj
+`smolvlm_with_expert.py:109-123`，cross\_attn 模式下 expert 的 k\_proj / v\_proj
 被**重建**成从 VLM 维度取值：
 
 ```python
@@ -226,18 +227,18 @@ if "cross" in attention_mode:
 
 ### 4.4 激活随 batch 严格线性【实测】
 
-| bs | 前向激活 | 单步峰值 |
-|---:|---:|---:|
-| 1 | 0.29 GB | — |
-| 2 | 0.54 GB | — |
-| 4 | 1.08 GB | — |
-| 8 | 2.14 GB | 3.48 GB |
-| 16 | 4.24 GB | 5.73 GB |
+| bs |    前向激活 |     单步峰值 |
+| -: | ------: | -------: |
+|  1 | 0.29 GB |        — |
+|  2 | 0.54 GB |        — |
+|  4 | 1.08 GB |        — |
+|  8 | 2.14 GB |  3.48 GB |
+| 16 | 4.24 GB |  5.73 GB |
 | 32 | 8.41 GB | 10.16 GB |
 
 完全线性 → 没有隐藏的常数项，也无法靠"小 batch 摊薄"。
 
----
+***
 
 ## 5. 训练参数（live run 实际解析出来的）【实测】
 
@@ -254,10 +255,10 @@ pixel-shuffle(4) 后每路只剩 8×8=64 个 token，图像信息被压得很狠
 
 ### ⚠️ 坑：`--policy.path` 在本环境会直接崩
 
-| | 行为 | 本环境 |
-|---|---|---|
-| `--policy.pretrained_path`（**当前用的**） | 只加载权重，policy 特征按数据集推断；配置走你的 JSON → `load_vlm_weights=False` | ✅ 正常 |
-| `--policy.path` | 连 base 的 `config.json` 一起加载 → `load_vlm_weights=True` | ❌ **TypeError** |
+| <br />                               | 行为                                                          | 本环境             |
+| ------------------------------------ | ----------------------------------------------------------- | --------------- |
+| `--policy.pretrained_path`（**当前用的**） | 只加载权重，policy 特征按数据集推断；配置走你的 JSON → `load_vlm_weights=False` | ✅ 正常            |
+| `--policy.path`                      | 连 base 的 `config.json` 一起加载 → `load_vlm_weights=True`       | ❌ **TypeError** |
 
 因为 `load_vlm_weights=True` 时 `smolvlm_with_expert.py:78-83` 会走：
 
@@ -269,14 +270,14 @@ AutoModelForImageTextToText.from_pretrained(model_id, device_map=device,
 而 `transformers 4.53.3` 不认 `dtype=`（那是 4.56+ 的写法，此处应为 `torch_dtype=`）→
 `TypeError: SmolVLMForConditionalGeneration.__init__() got an unexpected keyword argument 'dtype'`。
 
-> 所以 `SmolVLA_训练说明.md` §3 说的「用 pretrained_path 而不是 policy.path，是因为相机名
+> 所以 `SmolVLA_训练说明.md` §3 说的「用 pretrained\_path 而不是 policy.path，是因为相机名
 > 不同」只是其中一个理由；**在本环境它还多救了一次命**。别换回去。
 >
 > 另外注意：这也意味着**模型实际是「按 config 新建 + 加载 base 权重」**，
-> 而不是"加载 base 的配置"。VLM 那 350M 的权重仍然来自 smolvla_base 的 safetensors，
+> 而不是"加载 base 的配置"。VLM 那 350M 的权重仍然来自 smolvla\_base 的 safetensors，
 > 没有随机初始化的问题。
 
----
+***
 
 ## 6. 还有 20 GB 富余，要不要开大 batch？
 
@@ -299,12 +300,12 @@ AutoModelForImageTextToText.from_pretrained(model_id, device_map=device,
   （412.66 MB = 2 × 0.206 GB 印证）。bf16 的 `exp_avg_sq` 配 `eps=1e-8` 数值条件偏差，
   是常见坑，**但当前 run 的 loss 曲线（0.395→0.191→0.051 @1177 步）没有异常**，
   不建议中途动它。
-- **`max_action_dim=32` 对 7 维动作有 78% 是 padding**（与 coffee_cup 那次 12 维的处理一致）。
+- **`max_action_dim=32`** **对 7 维动作有 78% 是 padding**（与 coffee\_cup 那次 12 维的处理一致）。
   只涉及 1.6M 参数，可忽略，但要知道动作投影有 3/4 在算零。
 - **checkpoint 组成**：模型 1.2 GB + 优化器 0.41 GB。`SmolVLA_训练说明.md` 记的
   "单个 ckpt 1.5 GB" 是这两部分之和，与磁盘估算（20 个 ≈ 30 GB）一致。
 
----
+***
 
 ## 7. 复现方法
 
@@ -313,7 +314,7 @@ AutoModelForImageTextToText.from_pretrained(model_id, device_map=device,
 
 ### 7.1 参数量 / dtype 拆解（CPU）
 
-关键点：**必须显式设 `load_vlm_weights=False`**，否则会踩 §5 的 `dtype=` 崩溃。
+关键点：**必须显式设** **`load_vlm_weights=False`**，否则会踩 §5 的 `dtype=` 崩溃。
 不要用 `SmolVLAConfig.from_pretrained()`（它会读 base config.json 并带 `type` 字段，draccus 会报错）。
 
 ```python
@@ -380,7 +381,7 @@ nvidia-smi    # 训练中每个 rank 约 4550–4592 MiB
 
 ### 7.5 权重来源校验（CPU，§1.1 的 bit 级比对）
 
-决定性证据：模型里的参数是否真的来自 `smolvla_base`。**注意用 `p.state_dict()` 而不是
+决定性证据：模型里的参数是否真的来自 `smolvla_base`。**注意用** **`p.state_dict()`** **而不是
 `p.model.state_dict()`** —— 落盘/加载用的是带 `model.` 前缀的那套 key，用 `p.model` 比会
 得到 0/500 全不匹配的假阴性。
 
@@ -412,7 +413,7 @@ print(f"bit 级一致 {ok}/{n}")                                    # 期望 500
 > `checkpoints/100000` 与随机初始化），因为 ACT 那边确实有大量从零训的参数。
 > SmolVLA 这里不存在这个问题，一次全量比对就够。
 
----
+***
 
 ## 8. 冻结 VLM 会让 b601 效果变差吗？
 
@@ -426,17 +427,17 @@ print(f"bit 级一致 {ok}/{n}")                                    # 期望 500
 
 结构上，VLM 在这里是**特征提取器**而非任务求解器：它把 3 路图像 + 语言压成
 241 个 token 的 hidden state，本体相关的活由那 99.88M 可训 expert 来干。
-关键点：**读取冻结特征的 k_proj / v_proj 本身是可训练的**（§4.3），
+关键点：**读取冻结特征的 k\_proj / v\_proj 本身是可训练的**（§4.3），
 所以「冻结特征 → b601 动作」这个映射是专门学出来的，不是照搬 SO-101。
 
 ### 8.2 风险排序
 
-| # | 风险 | 判断 |
-|---|---|---|
-| 1 | **223 ep 训 8 阶段长时序任务**（抓杯→放托盘→抓方块→按按钮→等 4 秒→松开→放方块→移杯子） | 我认为**这才是主要风险**，对 ACT 和 SmolVLA 一样难 |
-| 2 | 跨本体差距（b601 **7 维** / SO-101 **6 维**，外观与标定都不同） | 真实但可控：action 投影头可训，维度差由 `max_action_dim=32` padding 吸收 |
-| 3 | 指令被截断 | 单任务下大概率无害，**多任务时致命**（§9） |
-| 4 | 冻结 SigLIP + SmolLM2 | **最不用担心** —— 见 §8.1 |
+| # | 风险                                                      | 判断                                                     |
+| - | ------------------------------------------------------- | ------------------------------------------------------ |
+| 1 | **223 ep 训 8 阶段长时序任务**（抓杯→放托盘→抓方块→按按钮→等 4 秒→松开→放方块→移杯子） | 我认为**这才是主要风险**，对 ACT 和 SmolVLA 一样难                     |
+| 2 | 跨本体差距（b601 **7 维** / SO-101 **6 维**，外观与标定都不同）           | 真实但可控：action 投影头可训，维度差由 `max_action_dim=32` padding 吸收 |
+| 3 | 指令被截断                                                   | 单任务下大概率无害，**多任务时致命**（§9）                               |
+| 4 | 冻结 SigLIP + SmolLM2                                     | **最不用担心** —— 见 §8.1                                    |
 
 支撑第 4 点的另一个结构证据：b601 是 hand/front/top 三路（**含腕部视角**），
 与预训练数据的 top/wrist/side 拓扑相近，不是毫无重叠的域；
@@ -453,7 +454,7 @@ print(f"bit 级一致 {ok}/{n}")                                    # 期望 500
    3.69 GB + 激活，24 GB 卡放得下）。但 223 ep 喂 450M 参数有过拟合 / 遗忘预训练
    的风险，**可能反而更差**
 
----
+***
 
 ## 9. ⚠️ 指令被静默截断：66 → 48，丢的是任务主目标
 
@@ -502,7 +503,7 @@ SmolVLA 预训练时任务文本是被 Qwen2.5-VL **改写成简短动词短语*
 
 ### 修法（按推荐顺序）
 
-1. **改数据集 `meta/tasks.parquet` 里的任务串**，改成简短单句
+1. **改数据集** **`meta/tasks.parquet`** **里的任务串**，改成简短单句
    （如 `Move the paper cup from the coffee machine to the table`）—— 治本，单/多任务都好
 2. 调大 `tokenizer_max_length` —— **有风险**：base 是在 48 上预训练并验证的，
    位置编码 / 注意力分布都按这个长度调过，改大可能引入新的分布外问题
@@ -522,7 +523,7 @@ print(len(ids))                                  # 66
 print(tok.decode(ids[:48]))                      # 会丢掉开头的模型输入 = ids[-48:]
 ```
 
----
+***
 
 ## 附：关键数字速查
 
@@ -550,3 +551,4 @@ suffix (expert)    50 tokens
 optimizer          lr 5e-5, betas (0.9,0.95), eps 1e-8, wd 1e-10, clip 10
 scheduler          cosine 1000 warmup → 100000 decay → 2.5e-6
 ```
+
