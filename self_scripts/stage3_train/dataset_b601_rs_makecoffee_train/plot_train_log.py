@@ -44,7 +44,8 @@ PAT = re.compile(
     r"grdn:(?P<grdn>[\d.eE+-]+)\s+"
     r"lr:(?P<lr>[\d.eE+-]+)\s+"
     r"updt_s:(?P<updt>[\d.]+)\s+"
-    r"data_s:(?P<data>[\d.]+)"
+    r"data_s:(?P<data>[\d.]+)\s+"
+    r"pct:(?P<pct>[\d.]+)%"
 )
 TS = re.compile(r"^INFO\s+(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)")
 _MULT = {"k": 1e3, "m": 1e6, "g": 1e9}
@@ -58,9 +59,16 @@ def _num(s: str) -> float:
 
 
 def _header(text: str) -> dict:
-    """从日志头部捞训练配置 (num_frames / 有效 batch / job 名 等)。"""
+    """从日志头部捞训练配置 (num_frames / 有效 batch / job 名 等)。
+
+    不写死扫描行数: 头部长度随配置 dump 变化 (SmolVLA 的 policy 配置嵌套远比
+    ACT 深, 那些行被推到了 170+ 行, 用 [:130] 会漏掉 → pass 数算成 1.00)。
+    改为扫到第一条 step 汇总行就停。
+    """
     out = {}
-    for line in text.splitlines()[:130]:
+    for line in text.splitlines():
+        if "ot_train.py:444" in line:
+            break
         for key, pat in (
             ("frames", r"dataset\.num_frames=(\d+)"),
             ("episodes", r"dataset\.num_episodes=(\d+)"),
@@ -133,7 +141,15 @@ def main():
     if not rows:
         raise SystemExit(f"未在 {log_path} 中解析到 step 汇总行")
 
-    steps = [int(_num(r["step"])) for r in rows]
+    # step 字段只精确到 1K (日志把它缩写成 "50K"), 一个标签下有 5 条 (log_freq=200)
+    # 不同记录 —— 直接用它当 x 轴会把 5 个点叠在一起、坐标也偏最多 400 步。
+    # pct 是精确到 0.2% 的进度, 乘总步数即真实 step, 优先用它。
+    hdr = _header(text)
+    _tot = hdr.get("steps")
+    if _tot and all(r.get("pct") for r in rows):
+        steps = [round(float(r["pct"]) / 100.0 * _tot) for r in rows]
+    else:
+        steps = [int(_num(r["step"])) for r in rows]
     losses = [float(r["loss"]) for r in rows]
     grdns = [float(r["grdn"]) for r in rows]
     updts = [float(r["updt"]) for r in rows]
@@ -144,7 +160,6 @@ def main():
     loss_ema = _ema(losses, EMA_SPAN)
     grdn_ema = _ema(grdns, EMA_SPAN)
 
-    hdr = _header(text)
     n_frames, eff_batch = hdr.get("frames"), hdr.get("eff_batch")
 
     # 真实数据集 pass 数; 拿不到头部信息就退化成用 step 归一化
@@ -181,7 +196,11 @@ def main():
     # ------------------------------------------------------------------ 画图
     plt.rcParams["font.family"] = "sans-serif"
     fig, axes = plt.subplots(3, 2, figsize=(15, 13.5), facecolor=SURFACE)
-    fig.suptitle(f"ACT Training — {hdr.get('job_name', 'train')}"
+    # 标题里的算法名按 job_name 推断 (脚本是通用的, 别写死成 ACT)
+    _job = hdr.get("job_name", log_path.stem)
+    _jl = _job.lower()
+    _algo = "SmolVLA" if "smolvla" in _jl else ("ACT" if "act" in _jl else "Training")
+    fig.suptitle(f"{_algo} Training — {_job}"
                  f"   ({log_path.name})", fontsize=16, color=INK, y=0.985)
 
     # --- (0,0) loss, 线性坐标: 整体下降幅度
@@ -272,9 +291,12 @@ def main():
     ax.set_xlabel("dataset passes (step x eff_batch / num_frames)" + note)
     ax.set_ylabel("loss (log)")
     if mult == mult and abs(mult - round(mult)) < 0.01 and round(mult) > 1:
+        # 放在右上偏中: 收敛后的 loss 带贴着底部横贯全图, 注释框放左下会把
+        # 4~6 passes 那段数据整个盖住 (看着像数据有个洞)。
         ax.annotate(f"log `epch` ends at {epchs[-1]:.1f} = {mult:.0f}x these passes\n"
                     f"(per-rank episode counts summed)",
-                    xy=(0.03, 0.10), xycoords="axes fraction",
+                    xy=(0.22, 0.88), xycoords="axes fraction",
+                    va="top", ha="left",
                     color=MUTED, fontsize=9,
                     bbox=dict(facecolor=SURFACE, edgecolor="none", alpha=0.85, pad=2))
     style(ax)
