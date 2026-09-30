@@ -1,5 +1,10 @@
 # LeRobot 环境速查手册
 
+> ## ⚠️ 本目录已归档（2026-09-30 起）
+> 此速查表属于旧版脚本库，仅供历史参考。以后所有训练/采集/推理请使用新版：
+> **`/home/ksa/devdata/Projects/lerobot/self_scripts`**（索引见 `tools/cheatsheet.sh`）。
+> 详见本目录 `README.md`。
+
 > 机器：`kfzbox`  |  用户：`jt`  |  Conda 环境：`lerobot` (Python 3.12)
 
 ---
