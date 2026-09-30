@@ -1,0 +1,12 @@
+        - Avoid using `tokenizers` before the fork if possible
+        - Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+        - Avoid using `tokenizers` before the fork if possible
+        - Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+Training: 100%|██████████| 150000/150000 [17:17:45<00:00,  2.45it/s, loss=0.013, lr=2.50e-06]INFO 2026-09-26 18:16:32 ot_train.py:444 step:150K smpl:77M ep:32K epch:96.10 loss:0.013 grdn:0.195 lr:2.5e-06 updt_s:0.395 data_s:0.028 pct:100.00% eta:0s
+INFO 2026-09-26 18:16:32 ot_train.py:464 Checkpoint policy after step 150000
+Training: 100%|██████████| 150000/150000 [17:17:46<00:00,  2.41it/s, loss=0.013, lr=2.50e-06]
+INFO 2026-09-26 18:16:33 ot_train.py:537 End of training
+
+── 训练后复查：数据集是否在训练期间被改动 ──
